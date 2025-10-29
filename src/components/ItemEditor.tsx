@@ -1,53 +1,45 @@
 import { useState } from "react";
-import { ArrowLeft, Eye, ExternalLink } from "lucide-react";
+import { ArrowLeft, Eye } from "lucide-react";
 import { Button } from "./ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { CodeEditor } from "./CodeEditor";
-import { MetadataPanel } from "./MetadataPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { WysiwygEditor } from "./WysiwygEditor";
-import { PagePreview } from "./PagePreview";
+import { CodeEditor } from "./CodeEditor";
+import { ItemMetadataPanel } from "./ItemMetadataPanel";
+import { Collection, Item } from "./DynamicPages";
 
-interface PageEditorProps {
-  pageId: string;
+interface ItemEditorProps {
+  collection: Collection;
+  item: Item | null;
   onBack: () => void;
 }
 
-export function PageEditor({ pageId, onBack }: PageEditorProps) {
+export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
   const [activeTab, setActiveTab] = useState("content");
-  const [title, setTitle] = useState("Home");
-  const [slug, setSlug] = useState("/home");
-  const [content, setContent] = useState("<h1>Welcome to Buzzinga</h1><p>This is your homepage content. You can format text with the toolbar above.</p>");
-  const [cssCode, setCssCode] = useState(".hero {\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n  padding: 4rem 2rem;\n  color: white;\n}\n\n.container {\n  max-width: 1200px;\n  margin: 0 auto;\n}");
-  const [jsCode, setJsCode] = useState("// Page initialization\ndocument.addEventListener('DOMContentLoaded', () => {\n  console.log('Page loaded');\n  \n  // Add smooth scroll\n  document.querySelectorAll('a[href^=\"#\"]').forEach(anchor => {\n    anchor.addEventListener('click', function (e) {\n      e.preventDefault();\n      const target = document.querySelector(this.getAttribute('href'));\n      target?.scrollIntoView({ behavior: 'smooth' });\n    });\n  });\n});");
+  const [title, setTitle] = useState(item?.title || "");
+  const [slug, setSlug] = useState(item?.slug || "");
+  const [content, setContent] = useState("<h1>Welcome to your new item</h1><p>Start writing your content here...</p>");
+  const [cssCode, setCssCode] = useState(".content {\n  padding: 2rem;\n  max-width: 800px;\n  margin: 0 auto;\n}");
+  const [jsCode, setJsCode] = useState("// Item initialization\nconsole.log('Item loaded');");
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [showFullPreview, setShowFullPreview] = useState(false);
-
-  // Mock header/footer content from Menus module
-  const mockHeaderContent = `<div style="display: flex; justify-content: space-between; align-items: center;">
-    <h2 style="margin: 0; font-size: 24px;">Buzzinga</h2>
-    <nav style="display: flex; gap: 24px;">
-      <a href="/" style="text-decoration: none;">Home</a>
-      <a href="/about" style="text-decoration: none;">About</a>
-      <a href="/services" style="text-decoration: none;">Services</a>
-      <a href="/contact" style="text-decoration: none;">Contact</a>
-    </nav>
-  </div>`;
-
-  const mockFooterContent = `<div style="text-align: left;">
-    <p style="margin-bottom: 8px;">&copy; 2025 Buzzinga. All rights reserved.</p>
-    <div style="display: flex; gap: 16px; margin-top: 12px;">
-      <a href="/privacy" style="text-decoration: none;">Privacy Policy</a>
-      <a href="/terms" style="text-decoration: none;">Terms of Service</a>
-      <a href="mailto:hello@buzzinga.com" style="text-decoration: none;">hello@buzzinga.com</a>
-    </div>
-  </div>`;
 
   const deviceSizes = {
     desktop: "100%",
     tablet: "768px",
     mobile: "375px",
+  };
+
+  const handleTitleChange = (newTitle: string) => {
+    setTitle(newTitle);
+    if (!item) {
+      // Auto-generate slug from title for new items
+      const autoSlug = newTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      setSlug(autoSlug);
+    }
   };
 
   return (
@@ -56,23 +48,23 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       <div className="border-b border-neutral-200 bg-white sticky top-0 z-10">
         <div className="px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={onBack} className="text-neutral-600 hover:text-neutral-900">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onBack}
+              className="text-neutral-600 hover:text-neutral-900"
+            >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
             <div className="h-6 w-px bg-neutral-200" />
-            <h2 className="text-neutral-900">{title}</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{collection.icon}</span>
+              <h2 className="text-neutral-900">
+                {item ? `Edit: ${item.title}` : `New ${collection.name} Item`}
+              </h2>
+            </div>
           </div>
-
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setShowFullPreview(true)}
-            className="gap-2"
-          >
-            <Eye className="w-4 h-4" />
-            Full Preview
-          </Button>
         </div>
       </div>
 
@@ -111,7 +103,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
               </TabsList>
             </div>
 
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-hidden">
               <TabsContent value="content" className="h-full m-0 p-8 overflow-auto">
                 <div className="max-w-3xl space-y-6">
                   <div className="space-y-2">
@@ -119,25 +111,62 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                     <Input
                       id="title"
                       value={title}
-                      onChange={(e) => setTitle(e.target.value)}
+                      onChange={(e) => handleTitleChange(e.target.value)}
+                      placeholder="Enter item title..."
                       className="border-neutral-200"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="slug">Slug</Label>
-                    <Input
-                      id="slug"
-                      value={slug}
-                      onChange={(e) => setSlug(e.target.value)}
-                      className="border-neutral-200"
-                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-neutral-500">{collection.slugPrefix}</span>
+                      <Input
+                        id="slug"
+                        value={slug}
+                        onChange={(e) => setSlug(e.target.value)}
+                        placeholder="url-slug"
+                        className="border-neutral-200 flex-1"
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="content">Content</Label>
-                    <WysiwygEditor value={content} onChange={setContent} />
-                  </div>
+                  {/* Dynamic Fields Based on Collection */}
+                  {collection.fields
+                    .filter((field) => field.name !== "Title" && field.name !== "Slug")
+                    .map((field) => (
+                      <div key={field.id} className="space-y-2">
+                        <Label htmlFor={field.id}>
+                          {field.name}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </Label>
+                        {field.type === "longtext" && field.name.toLowerCase().includes("body") ? (
+                          <WysiwygEditor value={content} onChange={setContent} />
+                        ) : field.type === "longtext" ? (
+                          <Input
+                            id={field.id}
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            className="border-neutral-200"
+                          />
+                        ) : field.type === "image" ? (
+                          <div className="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-neutral-400 transition-colors cursor-pointer">
+                            <p className="text-sm text-neutral-500">Click to upload or drag and drop</p>
+                          </div>
+                        ) : field.type === "tags" ? (
+                          <Input
+                            id={field.id}
+                            placeholder="Add tags (comma separated)..."
+                            className="border-neutral-200"
+                          />
+                        ) : (
+                          <Input
+                            id={field.id}
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            className="border-neutral-200"
+                          />
+                        )}
+                      </div>
+                    ))}
                 </div>
               </TabsContent>
 
@@ -182,8 +211,8 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                     style={{ width: deviceSizes[previewDevice], minHeight: "600px" }}
                   >
                     <div className="p-8">
-                      <h1 className="mb-4 text-neutral-900">{title}</h1>
-                      <div 
+                      <h1 className="mb-4 text-neutral-900">{title || "Untitled Item"}</h1>
+                      <div
                         className="prose prose-neutral max-w-none"
                         dangerouslySetInnerHTML={{ __html: content }}
                       />
@@ -196,18 +225,8 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         </div>
 
         {/* Right Sidebar - Metadata Panel */}
-        <MetadataPanel />
+        <ItemMetadataPanel item={item} />
       </div>
-
-      {/* Full Page Preview Modal */}
-      <PagePreview
-        open={showFullPreview}
-        onClose={() => setShowFullPreview(false)}
-        pageTitle={title}
-        pageBody={content}
-        headerContent={mockHeaderContent}
-        footerContent={mockFooterContent}
-      />
     </div>
   );
 }

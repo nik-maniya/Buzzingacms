@@ -2,10 +2,30 @@ import { useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { PagesList } from "./components/PagesList";
 import { PageEditor } from "./components/PageEditor";
+import { DynamicPages } from "./components/DynamicPages";
+import { MediaLibrary } from "./components/MediaLibrary";
+import { Menus } from "./components/Menus";
+import { Redirects } from "./components/Redirects";
+import { DomainSettings } from "./components/DomainSettings";
+import { Forms } from "./components/Forms";
+import { PublicPageDemo } from "./components/PublicPageDemo";
+import { Login } from "./components/Login";
+import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeView, setActiveView] = useState("pages");
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setActiveView("pages");
+    setEditingPageId(null);
+  };
 
   const handleEditPage = (pageId: string) => {
     setEditingPageId(pageId);
@@ -21,14 +41,6 @@ export default function App() {
 
   const renderPlaceholderView = (view: string) => {
     const viewTitles: Record<string, string> = {
-      "dynamic-pages": "Dynamic Pages",
-      "media": "Media Library",
-      "menus": "Menus",
-      "redirects": "Redirects",
-      "domain": "Domain & DNS",
-      "seo": "SEO Settings",
-      "backups": "Backups & Revisions",
-      "submissions": "Contact Submissions",
       "settings": "System Settings",
     };
 
@@ -52,9 +64,24 @@ export default function App() {
     );
   };
 
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Login onLogin={handleLogin} />
+        <Toaster />
+      </>
+    );
+  }
+
+  // Show dashboard if authenticated
   return (
     <div className="flex h-screen bg-white overflow-hidden">
-      <Sidebar activeView={activeView} onViewChange={setActiveView} />
+      <Sidebar 
+        activeView={activeView} 
+        onViewChange={setActiveView}
+        onLogout={handleLogout}
+      />
       
       {activeView === "pages" && !editingPageId && (
         <PagesList onEditPage={handleEditPage} onNewPage={handleNewPage} />
@@ -64,7 +91,31 @@ export default function App() {
         <PageEditor pageId={editingPageId} onBack={handleBackToList} />
       )}
 
-      {activeView !== "pages" && renderPlaceholderView(activeView)}
+      {activeView === "dynamic-pages" && <DynamicPages />}
+
+      {activeView === "media" && <MediaLibrary />}
+
+      {activeView === "menus" && <Menus />}
+
+      {activeView === "redirects" && <Redirects />}
+
+      {activeView === "domain" && <DomainSettings />}
+
+      {activeView === "forms" && <Forms />}
+
+      {activeView === "public-preview" && <PublicPageDemo />}
+
+      {activeView !== "pages" && 
+       activeView !== "dynamic-pages" && 
+       activeView !== "media" && 
+       activeView !== "menus" && 
+       activeView !== "redirects" && 
+       activeView !== "domain" && 
+       activeView !== "forms" &&
+       activeView !== "public-preview" &&
+       renderPlaceholderView(activeView)}
+      
+      <Toaster />
     </div>
   );
 }

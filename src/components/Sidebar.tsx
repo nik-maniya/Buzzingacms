@@ -8,13 +8,17 @@ import {
   Search, 
   Archive, 
   Mail, 
-  Settings 
+  Settings,
+  FileText as FormIcon,
+  LogOut,
+  Eye
 } from "lucide-react";
 import { cn } from "./ui/utils";
 
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
+  onLogout: () => void;
 }
 
 interface NavItem {
@@ -28,7 +32,7 @@ interface NavSection {
   items: NavItem[];
 }
 
-export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+export function Sidebar({ activeView, onViewChange, onLogout }: SidebarProps) {
   const navSections: NavSection[] = [
     {
       label: "Content",
@@ -49,9 +53,8 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
     {
       label: "Utilities",
       items: [
-        { id: "seo", label: "SEO Settings", icon: <Search className="w-4 h-4" /> },
-        { id: "backups", label: "Backups & Revisions", icon: <Archive className="w-4 h-4" /> },
-        { id: "submissions", label: "Contact Submissions", icon: <Mail className="w-4 h-4" /> },
+        { id: "forms", label: "Forms", icon: <FormIcon className="w-4 h-4" /> },
+        { id: "public-preview", label: "Public Preview", icon: <Eye className="w-4 h-4" /> },
         { id: "settings", label: "System Settings", icon: <Settings className="w-4 h-4" /> },
       ],
     },
@@ -98,13 +101,17 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       </nav>
 
       <div className="p-4 border-t border-neutral-800">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-blue-500" />
-          <div>
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-neutral-800 group"
+        >
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-blue-500 flex-shrink-0" />
+          <div className="flex-1 text-left">
             <div className="text-sm text-neutral-100">Admin</div>
             <div className="text-xs text-neutral-500">admin@buzzinga.com</div>
           </div>
-        </div>
+          <LogOut className="w-4 h-4 text-neutral-500 group-hover:text-neutral-300 transition-colors" />
+        </button>
       </div>
     </aside>
   );
