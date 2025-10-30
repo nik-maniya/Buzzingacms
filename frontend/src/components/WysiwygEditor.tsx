@@ -59,6 +59,29 @@ export function WysiwygEditor({ value, onChange }: WysiwygEditorProps) {
     }
   }, [mode]);
 
+  // Sync external value prop into the editor after async loads
+  // useEffect(() => {
+  //   if (quillRef.current) {
+  //     if (mode === "visual") {
+  //       const current = quillRef.current.root.innerHTML;
+  //       if (value !== undefined && current !== value) {
+  //         quillRef.current.root.innerHTML = value || "";
+  //         setHtmlValue(value || "");
+  //       }
+  //     } else {
+  //       // In HTML mode, keep textarea in sync with external value
+  //       if (value !== undefined && htmlValue !== value) {
+  //         setHtmlValue(value || "");
+  //       }
+  //     }
+  //   } else {
+  //     // If quill not ready yet, keep local state in sync
+  //     if (value !== undefined && htmlValue !== value) {
+  //       setHtmlValue(value || "");
+  //     }
+  //   }
+  // }, [value]);
+
   const handleHtmlChange = (newHtml: string) => {
     setHtmlValue(newHtml);
     onChange(newHtml);

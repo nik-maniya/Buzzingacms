@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -13,21 +13,46 @@ export function Login({ onLogin }: LoginProps) {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
-    // Validate credentials
-    if (email === "admin@buzzinga.com" && password === "buzzinga2025") {
-      setIsLoading(true);
-      
-      // Simulate login delay
-      setTimeout(() => {
-        toast.success("Login successful!");
-        onLogin();
-        setIsLoading(false);
-      }, 800);
-    } else {
-      toast.error("Invalid email or password");
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(
+        (import.meta as any).env?.VITE_API_URL
+          ? `${(import.meta as any).env.VITE_API_URL}/api/auth/login`
+          : "http://localhost:5000/api/auth/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Invalid email or password");
+      }
+
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+      }
+
+      if (data?.user) {
+        try {
+          localStorage.setItem("user", JSON.stringify(data.user));
+        } catch {}
+      }
+
+      toast.success("Login successful!");
+      onLogin();
+    } catch (err: any) {
+      toast.error(err?.message || "Login failed");
+    } finally {
+      setIsLoading(false);
     }
   };
 

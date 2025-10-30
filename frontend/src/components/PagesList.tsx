@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Plus, Edit2, Lock, Rocket, Copy, Trash2, MoreHorizontal } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -30,6 +30,7 @@ export interface Page {
   title: string;
   status: "published" | "draft";
   lastUpdated: string;
+  isHomePage?: boolean;
 }
 
 interface PagesListProps {
@@ -40,14 +41,83 @@ interface PagesListProps {
 export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [pages, setPages] = useState<Page[]>([]);
 
-  const pages: Page[] = [
-    { id: "1", title: "Home", status: "published", lastUpdated: "Oct 28, 2025" },
-    { id: "2", title: "About", status: "draft", lastUpdated: "Oct 20, 2025" },
-    { id: "3", title: "Contact", status: "published", lastUpdated: "Oct 15, 2025" },
-    { id: "4", title: "Services", status: "published", lastUpdated: "Oct 10, 2025" },
-    { id: "5", title: "Case Studies", status: "draft", lastUpdated: "Oct 5, 2025" },
-  ];
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setPages([]);
+      return;
+    }
+
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    fetch(`${apiBase}/api/pages`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (r) => {
+        const res = await r.json();
+        if (!r.ok) throw new Error(res?.message || "Failed to load pages");
+        const data = res?.data || [];
+        const mapped: Page[] = data.map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          status: p.status === "PUBLISHED" ? "published" : "draft",
+          lastUpdated: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "",
+          isHomePage: !!p.isHomePage,
+        }));
+        setPages(mapped);
+      })
+      .catch(() => setPages([]));
+  }, []);
+
+  const handleSetHome = async (pageId: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    try {
+      const res = await fetch(`${apiBase}/api/pages/${pageId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isHomePage: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to set home page");
+      setPages((prev) => prev.map((p) => ({ ...p, isHomePage: p.id === pageId })));
+    } catch (e) {
+      // silently ignore; could show a toast
+    }
+  };
+
+  const handleDelete = async (pageId: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    try {
+      const res = await fetch(`${apiBase}/api/pages/${pageId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Failed to delete page");
+      setPages((prev) => prev.filter((p) => p.id !== pageId));
+    } catch (e) {
+      // optionally surface error
+    }
+  };
 
   const filteredPages = pages.filter((page) => {
     const matchesSearch = page.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -99,6 +169,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
           <Table>
             <TableHeader>
               <TableRow className="bg-neutral-50 hover:bg-neutral-50">
+                <TableHead className="text-neutral-600 w-20">Home</TableHead>
                 <TableHead className="text-neutral-600">Title</TableHead>
                 <TableHead className="text-neutral-600">Status</TableHead>
                 <TableHead className="text-neutral-600">Last Updated</TableHead>
@@ -112,6 +183,14 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
                   className="cursor-pointer hover:bg-neutral-50"
                   onClick={() => onEditPage(page.id)}
                 >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 cursor-pointer"
+                      checked={!!page.isHomePage}
+                      onChange={() => handleSetHome(page.id)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="text-neutral-900">{page.title}</span>
@@ -160,7 +239,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
                             <Copy className="w-4 h-4 mr-2" />
                             Duplicate
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">
+                          <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(page.id)}>
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete
                           </DropdownMenuItem>

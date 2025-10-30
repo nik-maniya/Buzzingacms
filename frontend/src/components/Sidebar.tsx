@@ -14,6 +14,7 @@ import {
   Eye
 } from "lucide-react";
 import { cn } from "./ui/utils";
+import { useEffect, useState, type ReactNode } from "react";
 
 interface SidebarProps {
   activeView: string;
@@ -24,7 +25,7 @@ interface SidebarProps {
 interface NavItem {
   id: string;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }
 
 interface NavSection {
@@ -33,6 +34,41 @@ interface NavSection {
 }
 
 export function Sidebar({ activeView, onViewChange, onLogout }: SidebarProps) {
+  const [userEmail, setUserEmail] = useState<string>("admin@buzzinga.com");
+  const [userName, setUserName] = useState<string>("Admin");
+
+  useEffect(() => {
+    // Try to load user from localStorage first
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        if (parsed?.email) setUserEmail(parsed.email);
+        if (parsed?.name) setUserName(parsed.name);
+        return;
+      } catch {}
+    }
+
+    // Fallback: fetch current user with token
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    fetch(`${apiBase}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = await r.json();
+        const u = d?.data || d?.user || null;
+        if (u?.email) setUserEmail(u.email);
+        if (u?.name) setUserName(u.name);
+      })
+      .catch(() => {});
+  }, []);
   const navSections: NavSection[] = [
     {
       label: "Content",
@@ -107,8 +143,8 @@ export function Sidebar({ activeView, onViewChange, onLogout }: SidebarProps) {
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-blue-500 flex-shrink-0" />
           <div className="flex-1 text-left">
-            <div className="text-sm text-neutral-100">Admin</div>
-            <div className="text-xs text-neutral-500">admin@buzzinga.com</div>
+            <div className="text-sm text-neutral-100">{userName || "User"}</div>
+            <div className="text-xs text-neutral-500">{userEmail}</div>
           </div>
           <LogOut className="w-4 h-4 text-neutral-500 group-hover:text-neutral-300 transition-colors" />
         </button>
