@@ -12,6 +12,7 @@ interface PagePreviewProps {
   pageBody: string;
   headerContent?: string;
   footerContent?: string;
+  customCss?: string;
 }
 
 export function PagePreview({
@@ -21,6 +22,7 @@ export function PagePreview({
   pageBody,
   headerContent = "",
   footerContent = "",
+  customCss = "",
 }: PagePreviewProps) {
   const [deviceView, setDeviceView] = useState<"desktop" | "tablet" | "mobile">(
     "desktop"
@@ -114,6 +116,7 @@ export function PagePreview({
                 footerContent={footerContent}
                 pageTitle={pageTitle}
                 deviceView={deviceView}
+                customCss={customCss}
               />
             </div>
           </div>

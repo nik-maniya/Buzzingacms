@@ -1,6 +1,3 @@
-// This is your Prisma schema file
-// Learn more: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,95 +7,77 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(VIEWER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  pages       Page[]
+  id          String       @id @default(uuid())
+  email       String       @unique
+  password    String
+  name        String
+  role        Role         @default(VIEWER)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   collections Collection[]
   forms       Form[]
   menus       Menu[]
+  pages       Page[]
 
   @@map("users")
 }
 
-enum Role {
-  ADMIN
-  EDITOR
-  VIEWER
-}
-
-// Page model
 model Page {
-  id          String      @id @default(uuid())
+  id          String     @id @default(uuid())
   title       String
-  slug        String      @unique
+  slug        String     @unique
   content     Json?
-  status      PageStatus  @default(DRAFT)
+  status      PageStatus @default(DRAFT)
   description String?
   keywords    String[]
   ogImage     String?
+  isHomePage  Boolean    @default(false)
   authorId    String
-  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  customCss   String?
+  customJs    String?
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  @@map("pages")
   @@index([slug])
   @@index([authorId])
   @@index([status])
+  @@map("pages")
 }
 
-enum PageStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
-// Collection model
 model Collection {
   id          String           @id @default(uuid())
   name        String
   slug        String           @unique
   description String?
-  fields      Json             // Field definitions
+  fields      Json
   authorId    String
-  author      User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  items       CollectionItem[]
+  author      User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  // Relations
-  items CollectionItem[]
-
-  @@map("collections")
   @@index([slug])
   @@index([authorId])
+  @@map("collections")
 }
 
-// Collection Item model
 model CollectionItem {
   id           String     @id @default(uuid())
   collectionId String
-  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  data         Json       // Dynamic data based on collection fields
+  data         Json
   status       String     @default("draft")
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 
-  @@map("collection_items")
   @@index([collectionId])
+  @@map("collection_items")
 }
 
-// Media model
 model Media {
-  id           String     @id @default(uuid())
+  id           String   @id @default(uuid())
   filename     String
   originalName String
   mimeType     String
@@ -107,67 +86,61 @@ model Media {
   url          String
   alt          String?
   caption      String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  @@map("media")
   @@index([mimeType])
+  @@map("media")
 }
 
-// Menu model
 model Menu {
-  id        String     @id @default(uuid())
+  id        String   @id @default(uuid())
   name      String
-  slug      String     @unique
+  slug      String   @unique
   location  String?
-  items     Json       // Menu structure as JSON
+  items     Json
   authorId  String
-  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  @@map("menus")
   @@index([slug])
   @@index([authorId])
+  @@map("menus")
 }
 
-// Form model
 model Form {
   id          String         @id @default(uuid())
   name        String
   slug        String         @unique
   description String?
-  fields      Json           // Form field definitions
-  settings    Json?          // Form settings (email notifications, etc.)
+  fields      Json
+  settings    Json?
   authorId    String
-  author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+  responses   FormResponse[]
+  author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  // Relations
-  responses FormResponse[]
-
-  @@map("forms")
   @@index([slug])
   @@index([authorId])
+  @@map("forms")
 }
 
-// Form Response model
 model FormResponse {
   id        String   @id @default(uuid())
   formId    String
-  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
-  data      Json     // Form submission data
+  data      Json
   ipAddress String?
   userAgent String?
   createdAt DateTime @default(now())
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
 
-  @@map("form_responses")
   @@index([formId])
   @@index([createdAt])
+  @@map("form_responses")
 }
 
-// Redirect model
 model Redirect {
   id          String   @id @default(uuid())
   fromPath    String   @unique
@@ -177,8 +150,18 @@ model Redirect {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@map("redirects")
   @@index([fromPath])
+  @@map("redirects")
 }
 
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
 
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}

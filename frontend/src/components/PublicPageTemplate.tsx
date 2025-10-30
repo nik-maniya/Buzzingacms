@@ -4,6 +4,7 @@ interface PublicPageTemplateProps {
   footerContent: string;
   pageTitle?: string;
   deviceView?: "desktop" | "tablet" | "mobile";
+  customCss?: string;
 }
 
 export function PublicPageTemplate({
@@ -12,6 +13,7 @@ export function PublicPageTemplate({
   footerContent,
   pageTitle = "Page Title",
   deviceView = "desktop",
+  customCss,
 }: PublicPageTemplateProps) {
   // Render HTML content safely (in production, use DOMPurify)
   const createMarkup = (html: string) => {
@@ -27,6 +29,10 @@ export function PublicPageTemplate({
 
   return (
     <div className={`${containerWidth} mx-auto bg-white min-h-screen flex flex-col`}>
+      {/* Custom CSS for preview/published rendering */}
+      {customCss ? (
+        <style dangerouslySetInnerHTML={{ __html: customCss }} />
+      ) : null}
       {/* Header Section */}
       <header className="w-full bg-neutral-900 border-b border-neutral-800">
         <div className="max-w-[1200px] mx-auto px-6 py-6">

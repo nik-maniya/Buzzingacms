@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Eye, ExternalLink } from "lucide-react";
 import { Button } from "./ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -16,13 +17,93 @@ interface PageEditorProps {
 
 export function PageEditor({ pageId, onBack }: PageEditorProps) {
   const [activeTab, setActiveTab] = useState("content");
-  const [title, setTitle] = useState("Home");
-  const [slug, setSlug] = useState("/home");
-  const [content, setContent] = useState("<h1>Welcome to Buzzinga</h1><p>This is your homepage content. You can format text with the toolbar above.</p>");
+  const [title, setTitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [content, setContent] = useState("");
   const [cssCode, setCssCode] = useState(".hero {\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n  padding: 4rem 2rem;\n  color: white;\n}\n\n.container {\n  max-width: 1200px;\n  margin: 0 auto;\n}");
   const [jsCode, setJsCode] = useState("// Page initialization\ndocument.addEventListener('DOMContentLoaded', () => {\n  console.log('Page loaded');\n  \n  // Add smooth scroll\n  document.querySelectorAll('a[href^=\"#\"]').forEach(anchor => {\n    anchor.addEventListener('click', function (e) {\n      e.preventDefault();\n      const target = document.querySelector(this.getAttribute('href'));\n      target?.scrollIntoView({ behavior: 'smooth' });\n    });\n  });\n});");
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [showFullPreview, setShowFullPreview] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState<"DRAFT" | "PUBLISHED">("DRAFT");
+
+  // Load page data if editing existing page
+  useEffect(() => {
+    if (!pageId || pageId === "new") return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    setIsLoading(true);
+    fetch(`${apiBase}/api/pages/${pageId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (r) => {
+        const res = await r.json();
+        if (!r.ok) throw new Error(res?.message || "Failed to load page");
+        const p = res?.data;
+        if (!p) return;
+        setTitle(p.title || "");
+        setSlug(p.slug || "");
+        // content can be a JSON object or a plain string in DB
+        let htmlContent = "";
+        if (typeof p.content === "string") {
+          htmlContent = p.content;
+        } else if (p.content && typeof p.content === "object") {
+          htmlContent = p.content.html || p.content.body || "";
+        }
+        setContent(typeof htmlContent === "string" ? htmlContent : "");
+        if (typeof p.customCss === "string") setCssCode(p.customCss);
+        if (typeof p.customJs === "string") setJsCode(p.customJs);
+        if (p.status === "PUBLISHED") setStatus("PUBLISHED"); else setStatus("DRAFT");
+      })
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, [pageId]);
+
+  const handleSave = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    const normalizedSlug = slug.startsWith("/") ? slug.slice(1) : slug;
+
+    try {
+      const isNew = !pageId || pageId === "new";
+      const url = isNew ? `${apiBase}/api/pages` : `${apiBase}/api/pages/${pageId}`;
+      const method = isNew ? "POST" : "PUT";
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title,
+          slug: normalizedSlug,
+          content: { html: content },
+          customCss: cssCode,
+          customJs: jsCode,
+          status,
+          description: "",
+          keywords: [],
+          ogImage: undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to create page");
+      onBack();
+    } catch (e) {
+      // no-op; could show a toast if available
+    }
+  };
 
   // Mock header/footer content from Menus module
   const mockHeaderContent = `<div style="display: flex; justify-content: space-between; align-items: center;">
@@ -64,15 +145,23 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
             <h2 className="text-neutral-900">{title}</h2>
           </div>
 
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setShowFullPreview(true)}
-            className="gap-2"
-          >
-            <Eye className="w-4 h-4" />
-            Full Preview
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              size="sm"
+              onClick={handleSave}
+            >
+              Save Page
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowFullPreview(true)}
+              className="gap-2"
+            >
+              <Eye className="w-4 h-4" />
+              Full Preview
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -183,6 +272,10 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                   >
                     <div className="p-8">
                       <h1 className="mb-4 text-neutral-900">{title}</h1>
+                      {/* Inject custom CSS for live preview */}
+                      {cssCode ? (
+                        <style dangerouslySetInnerHTML={{ __html: cssCode }} />
+                      ) : null}
                       <div 
                         className="prose prose-neutral max-w-none"
                         dangerouslySetInnerHTML={{ __html: content }}
@@ -207,6 +300,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         pageBody={content}
         headerContent={mockHeaderContent}
         footerContent={mockFooterContent}
+        customCss={cssCode}
       />
     </div>
   );
