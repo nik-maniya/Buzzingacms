@@ -1,0 +1,184 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(VIEWER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  pages       Page[]
+  collections Collection[]
+  forms       Form[]
+  menus       Menu[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+// Page model
+model Page {
+  id          String      @id @default(uuid())
+  title       String
+  slug        String      @unique
+  content     Json?
+  status      PageStatus  @default(DRAFT)
+  description String?
+  keywords    String[]
+  ogImage     String?
+  authorId    String
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("pages")
+  @@index([slug])
+  @@index([authorId])
+  @@index([status])
+}
+
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// Collection model
+model Collection {
+  id          String           @id @default(uuid())
+  name        String
+  slug        String           @unique
+  description String?
+  fields      Json             // Field definitions
+  authorId    String
+  author      User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  items CollectionItem[]
+
+  @@map("collections")
+  @@index([slug])
+  @@index([authorId])
+}
+
+// Collection Item model
+model CollectionItem {
+  id           String     @id @default(uuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  data         Json       // Dynamic data based on collection fields
+  status       String     @default("draft")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("collection_items")
+  @@index([collectionId])
+}
+
+// Media model
+model Media {
+  id           String     @id @default(uuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  url          String
+  alt          String?
+  caption      String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("media")
+  @@index([mimeType])
+}
+
+// Menu model
+model Menu {
+  id        String     @id @default(uuid())
+  name      String
+  slug      String     @unique
+  location  String?
+  items     Json       // Menu structure as JSON
+  authorId  String
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("menus")
+  @@index([slug])
+  @@index([authorId])
+}
+
+// Form model
+model Form {
+  id          String         @id @default(uuid())
+  name        String
+  slug        String         @unique
+  description String?
+  fields      Json           // Form field definitions
+  settings    Json?          // Form settings (email notifications, etc.)
+  authorId    String
+  author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  responses FormResponse[]
+
+  @@map("forms")
+  @@index([slug])
+  @@index([authorId])
+}
+
+// Form Response model
+model FormResponse {
+  id        String   @id @default(uuid())
+  formId    String
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  data      Json     // Form submission data
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@map("form_responses")
+  @@index([formId])
+  @@index([createdAt])
+}
+
+// Redirect model
+model Redirect {
+  id          String   @id @default(uuid())
+  fromPath    String   @unique
+  toPath      String
+  statusCode  Int      @default(301)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("redirects")
+  @@index([fromPath])
+}
+
+
