@@ -5,6 +5,7 @@ interface PublicPageTemplateProps {
   pageTitle?: string;
   deviceView?: "desktop" | "tablet" | "mobile";
   customCss?: string;
+  customJs?: string;
 }
 
 export function PublicPageTemplate({
@@ -14,6 +15,7 @@ export function PublicPageTemplate({
   pageTitle = "Page Title",
   deviceView = "desktop",
   customCss,
+  customJs,
 }: PublicPageTemplateProps) {
   // Render HTML content safely (in production, use DOMPurify)
   const createMarkup = (html: string) => {
@@ -33,6 +35,10 @@ export function PublicPageTemplate({
       {customCss ? (
         <style dangerouslySetInnerHTML={{ __html: customCss }} />
       ) : null}
+      {/* Custom JS for preview/published rendering */}
+      {customJs ? (
+        <script dangerouslySetInnerHTML={ customJs } />
+      ) : null}
       {/* Header Section */}
       <header className="w-full bg-neutral-900 border-b border-neutral-800">
         <div className="max-w-[1200px] mx-auto px-6 py-6">
@@ -50,11 +56,6 @@ export function PublicPageTemplate({
       {/* Body Section */}
       <main className="flex-1 w-full">
         <article className="max-w-[900px] mx-auto px-6 py-12">
-          {/* Page Title */}
-          {pageTitle && (
-            <h1 className="text-neutral-900 mb-8">{pageTitle}</h1>
-          )}
-
           {/* Page Body Content */}
           {bodyContent ? (
             <div

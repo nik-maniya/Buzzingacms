@@ -26,6 +26,8 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<"DRAFT" | "PUBLISHED">("DRAFT");
+  const [previewHeaderHtml, setPreviewHeaderHtml] = useState<string>("");
+  const [previewFooterHtml, setPreviewFooterHtml] = useState<string>("");
 
   // Load page data if editing existing page
   useEffect(() => {
@@ -105,31 +107,77 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     }
   };
 
-  // Mock header/footer content from Menus module
-  const mockHeaderContent = `<div style="display: flex; justify-content: space-between; align-items: center;">
+  // Build preview header/footer dynamically from user-created pages when modal opens
+  useEffect(() => {
+    if (!showFullPreview) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setPreviewHeaderHtml("");
+      setPreviewFooterHtml("");
+      return;
+    }
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    fetch(`${apiBase}/api/pages`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (r) => {
+        const res = await r.json();
+        if (!r.ok) throw new Error(res?.message || "Failed to load pages");
+        const list = Array.isArray(res?.data) ? res.data : [];
+        // Only published pages, sorted by title
+        const pages = list
+          .filter((p: any) => p?.status === "DRAFT")
+          .sort((a: any, b: any) => String(a.title).localeCompare(String(b.title)));
+        const navLinks = pages
+          .map((p: any) => {
+            const s = typeof p.slug === 'string' ? p.slug : '';
+            const href = s.startsWith('/') ? s : `/${s}`;
+            return `<a href="${href}" style="text-decoration: none;">${p.title}</a>`;
+          })
+          .join("\n      ");
+
+        const header = `<div style="display: flex; justify-content: space-between; align-items: center;">
     <h2 style="margin: 0; font-size: 24px;">Buzzinga</h2>
     <nav style="display: flex; gap: 24px;">
-      <a href="/" style="text-decoration: none;">Home</a>
-      <a href="/about" style="text-decoration: none;">About</a>
-      <a href="/services" style="text-decoration: none;">Services</a>
-      <a href="/contact" style="text-decoration: none;">Contact</a>
+      ${navLinks}
     </nav>
   </div>`;
+        setPreviewHeaderHtml(header);
 
-  const mockFooterContent = `<div style="text-align: left;">
+        const footer = `<div style="text-align: left;">
     <p style="margin-bottom: 8px;">&copy; 2025 Buzzinga. All rights reserved.</p>
-    <div style="display: flex; gap: 16px; margin-top: 12px;">
-      <a href="/privacy" style="text-decoration: none;">Privacy Policy</a>
-      <a href="/terms" style="text-decoration: none;">Terms of Service</a>
-      <a href="mailto:hello@buzzinga.com" style="text-decoration: none;">hello@buzzinga.com</a>
-    </div>
   </div>`;
+        setPreviewFooterHtml(footer);
+      })
+      .catch(() => {
+        setPreviewHeaderHtml("");
+        setPreviewFooterHtml("");
+      });
+  }, [showFullPreview]);
 
   const deviceSizes = {
     desktop: "100%",
     tablet: "768px",
     mobile: "375px",
   };
+
+  const previewSrcDoc = [
+    '<!doctype html>',
+    '<html>',
+    '  <head>',
+    '    <meta charset="utf-8" />',
+    '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
+    `    <style>${cssCode || ""}</style>`,
+    '  </head>',
+    '  <body>',
+    '    <div style="padding: 2rem">',
+    '      <div class="prose" style="max-width:none;color:#171717">' + (content || '') + '</div>',
+    '    </div>',
+    '    <script>' + (jsCode || '').replace(/<\/script>/g, '<\\/script>') + '<\\/script>',
+    '  </body>',
+    '</html>'
+  ].join('\n');
 
   return (
     <div className="flex-1 flex flex-col bg-white">
@@ -238,7 +286,28 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                 <CodeEditor value={jsCode} onChange={setJsCode} language="javascript" />
               </TabsContent>
 
-              <TabsContent value="preview" className="h-full m-0 p-8 bg-neutral-50 overflow-auto">
+              <TabsContent value="preview" className="h-full m-0 p-8 bg-neutral-50 overflow-auto preview-scrollbar">
+                <style>{`
+                  .preview-scrollbar::-webkit-scrollbar {
+                    width: 10px;
+                    height: 10px;
+                  }
+                  .preview-scrollbar::-webkit-scrollbar-track {
+                    background: #f5f5f5;
+                    border-radius: 5px;
+                  }
+                  .preview-scrollbar::-webkit-scrollbar-thumb {
+                    background: #d4d4d4;
+                    border-radius: 5px;
+                  }
+                  .preview-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #a3a3a3;
+                  }
+                  .preview-scrollbar {
+                    scrollbar-width: thin;
+                    scrollbar-color: #d4d4d4 #f5f5f5;
+                  }
+                `}</style>
                 <div className="mb-4 flex items-center justify-center gap-2">
                   <Button
                     variant={previewDevice === "desktop" ? "default" : "outline"}
@@ -267,20 +336,15 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                 </div>
                 <div className="flex justify-center">
                   <div
-                    className="bg-white border border-neutral-200 rounded-lg overflow-hidden shadow-lg transition-all"
-                    style={{ width: deviceSizes[previewDevice], minHeight: "600px" }}
+                    className="bg-white border border-neutral-200 rounded-lg overflow-auto shadow-lg transition-all preview-scrollbar"
+                    style={{ width: deviceSizes[previewDevice], minHeight: "600px", maxHeight: "calc(100vh - 300px)" }}
                   >
-                    <div className="p-8">
-                      <h1 className="mb-4 text-neutral-900">{title}</h1>
-                      {/* Inject custom CSS for live preview */}
-                      {cssCode ? (
-                        <style dangerouslySetInnerHTML={{ __html: cssCode }} />
-                      ) : null}
-                      <div 
-                        className="prose prose-neutral max-w-none"
-                        dangerouslySetInnerHTML={{ __html: content }}
-                      />
-                    </div>
+                    <iframe
+                      title="Live Preview"
+                      style={{ width: "100%", height: "100%", border: 0 }}
+                      sandbox="allow-scripts allow-same-origin"
+                      srcDoc={previewSrcDoc}
+                    />
                   </div>
                 </div>
               </TabsContent>
@@ -298,9 +362,10 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         onClose={() => setShowFullPreview(false)}
         pageTitle={title}
         pageBody={content}
-        headerContent={mockHeaderContent}
-        footerContent={mockFooterContent}
+        headerContent={previewHeaderHtml}
+        footerContent={previewFooterHtml}
         customCss={cssCode}
+        customJs={jsCode}
       />
     </div>
   );

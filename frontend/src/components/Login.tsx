@@ -70,7 +70,7 @@ export function Login({ onLogin }: LoginProps) {
 
         {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-lg border border-neutral-200 p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
             {/* Email Field */}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-neutral-700">
@@ -83,6 +83,11 @@ export function Login({ onLogin }: LoginProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                name="login_email"
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="h-11 bg-neutral-50 border-neutral-300 focus:border-yellow-400 focus:ring-yellow-400"
               />
             </div>
@@ -99,6 +104,11 @@ export function Login({ onLogin }: LoginProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                name="login_password"
+                autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="h-11 bg-neutral-50 border-neutral-300 focus:border-yellow-400 focus:ring-yellow-400"
               />
             </div>

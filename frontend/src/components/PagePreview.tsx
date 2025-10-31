@@ -13,6 +13,7 @@ interface PagePreviewProps {
   headerContent?: string;
   footerContent?: string;
   customCss?: string;
+  customJs?: string;
 }
 
 export function PagePreview({
@@ -23,6 +24,7 @@ export function PagePreview({
   headerContent = "",
   footerContent = "",
   customCss = "",
+  customJs = "",
 }: PagePreviewProps) {
   const [deviceView, setDeviceView] = useState<"desktop" | "tablet" | "mobile">(
     "desktop"
@@ -109,14 +111,39 @@ export function PagePreview({
             )}
           >
             {/* Page Content - Full Height */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto preview-scrollbar">
+              <style>{`
+                .preview-scrollbar::-webkit-scrollbar {
+                  width: 10px;
+                  height: 10px;
+                }
+                .preview-scrollbar::-webkit-scrollbar-track {
+                  background: #f5f5f5;
+                  border-radius: 5px;
+                }
+                .preview-scrollbar::-webkit-scrollbar-thumb {
+                  background: #d4d4d4;
+                  border-radius: 5px;
+                }
+                .preview-scrollbar::-webkit-scrollbar-thumb:hover {
+                  background: #a3a3a3;
+                }
+                .preview-scrollbar {
+                  scrollbar-width: thin;
+                  scrollbar-color: #d4d4d4 #f5f5f5;
+                }
+              `}</style>
+              {console.log("customJs", customJs)}
+              {console.log("customCss", customCss)}
               <PublicPageTemplate
                 headerContent={headerContent}
                 bodyContent={pageBody}
                 footerContent={footerContent}
                 pageTitle={pageTitle}
                 deviceView={deviceView}
+                
                 customCss={customCss}
+                customJs={customJs}
               />
             </div>
           </div>

@@ -12,12 +12,12 @@ export const createPage = async (req: AuthRequest, res: Response, next: NextFunc
         }
 
         // Check if slug already exists
-        const existingPage = await prisma.page.findUnique({
-            where: { slug },
+        const existingPage = await prisma.page.findFirst({
+            where: { slug, authorId: req.user.id },
         });
-
+        
         if (existingPage) {
-            throw new ApiError('A page with this slug already exists', 400);
+            throw new ApiError('You already have a page with this slug', 400);
         }
 
         // If this page is selected as home page, unset existing home page for this user
@@ -109,12 +109,12 @@ export const updatePage = async (req: AuthRequest, res: Response, next: NextFunc
 
         // If slug is being changed, check if new slug exists
         if (slug && slug !== existingPage.slug) {
-            const slugExists = await prisma.page.findUnique({
-                where: { slug },
+            const existingPage = await prisma.page.findFirst({
+                where: { slug, authorId: req.user.id },
             });
-
-            if (slugExists) {
-                throw new ApiError('A page with this slug already exists', 400);
+            
+            if (existingPage) {
+                throw new ApiError('You already have a page with this slug', 400);
             }
         }
 

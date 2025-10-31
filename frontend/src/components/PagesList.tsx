@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Plus, Edit2, Lock, Rocket, Copy, Trash2, MoreHorizontal } from "lucide-react";
+import { Search, Plus, Edit2, Lock, Rocket, Copy, Trash2, MoreHorizontal, Eye } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import {
@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { PagesLivePreview } from "./PagesLivePreview";
 
 export interface Page {
   id: string;
@@ -42,6 +43,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [pages, setPages] = useState<Page[]>([]);
+  const [showLivePreview, setShowLivePreview] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -132,10 +134,20 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
         <div className="px-8 py-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-neutral-900">Pages</h2>
-            <Button onClick={onNewPage} className="bg-yellow-400 hover:bg-yellow-500 text-neutral-900">
-              <Plus className="w-4 h-4 mr-2" />
-              New Page
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowLivePreview(true)}
+                className="gap-2"
+              >
+                <Eye className="w-4 h-4" />
+                Live Preview
+              </Button>
+              <Button onClick={onNewPage} className="bg-yellow-400 hover:bg-yellow-500 text-neutral-900">
+                <Plus className="w-4 h-4 mr-2" />
+                New Page
+              </Button>
+            </div>
           </div>
 
           {/* Filters */}
@@ -253,6 +265,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
           </Table>
         </div>
       </div>
+      <PagesLivePreview open={showLivePreview} onClose={() => setShowLivePreview(false)} />
     </div>
   );
 }
