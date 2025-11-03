@@ -154,3 +154,31 @@ export const updateMenu = async (req: AuthRequest, res: Response, next: NextFunc
         next(error);
     }
 }
+
+export const deleteMenu = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+
+        const existingMenu = await prisma.menu.findUnique({
+            where: { id },
+        });
+
+        if (!existingMenu) {
+            throw new ApiError('Menu not found', 404);
+        }
+
+        await prisma.menu.delete({
+            where: { id },
+        });
+
+        res.json({
+            success: true,
+            message: 'Menu deleted successfully',
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+
+
