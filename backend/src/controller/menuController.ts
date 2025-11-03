@@ -180,5 +180,31 @@ export const deleteMenu = async (req: AuthRequest, res: Response, next: NextFunc
     }
 }
 
+export const getAllMenus = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const menus = await prisma.menu.findMany({
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: {
+            updatedAt: 'desc',
+          },
+        });
+    
+        res.json({
+          success: true,
+          data: menus,
+        });
+      } catch (error) {
+        next(error);
+      }
+}
+
 
 
