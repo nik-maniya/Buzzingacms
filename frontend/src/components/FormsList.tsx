@@ -73,11 +73,18 @@ export function FormsList({ onNewForm, onEditForm, onViewResponses }: FormsListP
     form.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleDeleteForm = (formId: string) => {
-    setForms(forms.filter((form) => form.id !== formId));
-    toast.success("Form deleted successfully");
-    setDeleteDialogOpen(false);
-    setFormToDelete(null);
+  const handleDeleteForm = async (formId: string) => {
+    try {
+      await formsAPI.delete(formId);
+      setForms((prev) => prev.filter((form) => form.id !== formId));
+      toast.success("Form deleted successfully");
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || "Failed to delete form";
+      toast.error(msg);
+    } finally {
+      setDeleteDialogOpen(false);
+      setFormToDelete(null);
+    }
   };
 
   return (
