@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Search, Edit2, Eye, MoreVertical, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { toast } from "sonner";
+import { formsAPI } from "../services/api";
 
 interface FormsListProps {
   onNewForm: () => void;
@@ -32,63 +33,41 @@ export function FormsList({ onNewForm, onEditForm, onViewResponses }: FormsListP
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [formToDelete, setFormToDelete] = useState<string | null>(null);
 
-  // Sample forms data
-  const [forms, setForms] = useState<Form[]>([
-    {
-      id: "1",
-      name: "Contact Form",
-      slug: "contact-form",
-      description: "General contact form for website visitors",
-      fields: [],
-      emailNotification: {
-        enabled: true,
-        sendTo: "admin@buzzinga.com",
-        subject: "New Contact Form Submission",
-        bodyTemplate: "You received a new submission from {{Name}}",
-      },
-      storeResponses: true,
-      responseCount: 23,
-      lastSubmission: "Oct 29, 2025",
-      createdAt: "Oct 15, 2025",
-      status: "published",
-    },
-    {
-      id: "2",
-      name: "Careers",
-      slug: "careers",
-      description: "Job application form",
-      fields: [],
-      emailNotification: {
-        enabled: true,
-        sendTo: "hr@buzzinga.com",
-        subject: "New Career Application",
-        bodyTemplate: "New application from {{Name}}",
-      },
-      storeResponses: true,
-      responseCount: 8,
-      lastSubmission: "Oct 27, 2025",
-      createdAt: "Oct 10, 2025",
-      status: "published",
-    },
-    {
-      id: "3",
-      name: "Newsletter",
-      slug: "newsletter",
-      description: "Newsletter signup form",
-      fields: [],
-      emailNotification: {
-        enabled: false,
-        sendTo: "",
-        subject: "",
-        bodyTemplate: "",
-      },
-      storeResponses: true,
-      responseCount: 140,
-      lastSubmission: "Oct 28, 2025",
-      createdAt: "Oct 5, 2025",
-      status: "published",
-    },
-  ]);
+  const [forms, setForms] = useState<Form[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const res = await formsAPI.getAll();
+        const list = Array.isArray(res.data?.data) ? res.data.data : [];
+        const mapped: Form[] = list.map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          slug: f.slug,
+          description: f.description || "",
+          fields: Array.isArray(f.fields) ? f.fields : [],
+          emailNotification: {
+            enabled: !!f.settings?.email?.enabled,
+            sendTo: f.settings?.email?.to || "",
+            subject: f.settings?.email?.subject || "",
+            bodyTemplate: f.settings?.email?.body || "",
+          },
+          storeResponses: !!(f.settings?.storeResponses ?? true),
+          responseCount: f?._count?.responses ?? 0,
+          lastSubmission: f.updatedAt ? new Date(f.updatedAt).toLocaleDateString() : undefined,
+          createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString() : "",
+          status: "published",
+        }));
+        if (isMounted) setForms(mapped);
+      } catch (e: any) {
+        // fallback: keep empty list
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredForms = forms.filter((form) =>
     form.name.toLowerCase().includes(searchQuery.toLowerCase())

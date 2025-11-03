@@ -12,7 +12,7 @@ const api: AxiosInstance = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,6 +30,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Handle unauthorized access
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('token');
       window.location.href = '/';
     }
     return Promise.reject(error);
@@ -100,9 +101,9 @@ export const menusAPI = {
 
 // Forms API
 export const formsAPI = {
-  getAll: () => api.get('/forms'),
+  getAll: () => api.get('/forms/getAllForms'),
   
-  create: (formData: any) => api.post('/forms', formData),
+  create: (formData: any) => api.post('/forms/createForms', formData),
   
   submitResponse: (formId: string, responseData: any) =>
     api.post(`/forms/${formId}/responses`, responseData),

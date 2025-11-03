@@ -11,6 +11,7 @@ import { Badge } from "./ui/badge";
 import { toast } from "sonner";
 import { cn } from "./ui/utils";
 import { FormField } from "./Forms";
+import { formsAPI } from "../services/api";
 import { FieldEditor } from "./FieldEditor";
 
 interface FormBuilderProps {
@@ -28,6 +29,7 @@ interface DraggableFieldRowProps {
   moveField: (dragIndex: number, hoverIndex: number) => void;
   onEdit: (field: FormField) => void;
   onDelete: (index: number) => void;
+  key?: string | number;
 }
 
 function DraggableFieldRow({
@@ -186,7 +188,7 @@ export function FormBuilder({ formId, onBack }: FormBuilderProps) {
     setFields(newFields);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formName) {
       toast.error("Please enter a form name");
       return;
@@ -202,8 +204,36 @@ export function FormBuilder({ formId, onBack }: FormBuilderProps) {
       return;
     }
 
-    toast.success("Form saved successfully");
-    onBack();
+    try {
+      const payload = {
+        name: formName,
+        slug: formSlug,
+        description: formDescription || undefined,
+        fields: fields.map((f) => ({
+          id: f.id,
+          label: f.label,
+          type: f.type,
+          required: !!f.required,
+          placeholder: (f as any).placeholder ?? "",
+          options: (f as any).options ?? undefined,
+        })),
+        settings: {
+          storeResponses: !!storeResponses,
+          email: {
+            enabled: !!emailEnabled,
+            to: emailSendTo,
+            subject: emailSubject,
+            body: emailBody,
+          },
+        },
+      } as any;
+
+      await formsAPI.create(payload);
+      toast.success("Form saved successfully");
+      onBack();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || e?.message || "Failed to save form");
+    }
   };
 
   const handlePublish = () => {
