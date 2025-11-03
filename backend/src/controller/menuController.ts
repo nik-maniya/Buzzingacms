@@ -182,28 +182,33 @@ export const deleteMenu = async (req: AuthRequest, res: Response, next: NextFunc
 
 export const getAllMenus = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
         const menus = await prisma.menu.findMany({
-          include: {
-            author: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
+            where: { authorId: req.user.id },
+            include: {
+                author: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
             },
-          },
-          orderBy: {
-            updatedAt: 'desc',
-          },
+            orderBy: {
+                updatedAt: 'desc',
+            },
         });
-    
+
         res.json({
-          success: true,
-          data: menus,
+            success: true,
+            data: menus,
         });
-      } catch (error) {
+    } catch (error) {
         next(error);
-      }
+    }
 }
 
 
