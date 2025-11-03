@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Plus, GripVertical, Edit2, Trash2, Save } from "lucide-react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -120,30 +120,12 @@ function DraggableFieldRow({
 }
 
 export function FormBuilder({ formId, onBack }: FormBuilderProps) {
-  const [formName, setFormName] = useState(formId === "new" ? "" : "Contact Form");
-  const [formSlug, setFormSlug] = useState(formId === "new" ? "" : "contact-form");
+  const [formName, setFormName] = useState(formId === "new" ? "" : "");
+  const [formSlug, setFormSlug] = useState(formId === "new" ? "" : "");
   const [formDescription, setFormDescription] = useState("");
   const [storeResponses, setStoreResponses] = useState(true);
   const [fields, setFields] = useState<FormField[]>(
-    formId === "new"
-      ? []
-      : [
-          { id: "1", label: "Name", type: "text", required: true, placeholder: "Your name" },
-          {
-            id: "2",
-            label: "Email",
-            type: "email",
-            required: true,
-            placeholder: "your@email.com",
-          },
-          {
-            id: "3",
-            label: "Message",
-            type: "longtext",
-            required: false,
-            placeholder: "Your message",
-          },
-        ]
+    []
   );
 
   const [emailEnabled, setEmailEnabled] = useState(true);
@@ -228,7 +210,11 @@ export function FormBuilder({ formId, onBack }: FormBuilderProps) {
         },
       } as any;
 
-      await formsAPI.create(payload);
+      if (formId && formId !== "new") {
+        await formsAPI.update(formId, payload);
+      } else {
+        await formsAPI.create(payload);
+      }
       toast.success("Form saved successfully");
       onBack();
     } catch (e: any) {
@@ -251,6 +237,32 @@ export function FormBuilder({ formId, onBack }: FormBuilderProps) {
       setFormSlug(slug);
     }
   };
+
+  // Load existing form when editing
+  useEffect(() => {
+    const load = async () => {
+      if (!formId || formId === "new") return;
+      try {
+        const res = await formsAPI.getById(formId);
+        const f = res.data?.data;
+        if (!f) return;
+        setFormName(f.name || "");
+        setFormSlug(f.slug || "");
+        setFormDescription(f.description || "");
+        const incomingFields = Array.isArray(f.fields) ? f.fields : [];
+        setFields(incomingFields as FormField[]);
+        const s = f.settings || {};
+        setStoreResponses(!!(s.storeResponses ?? true));
+        setEmailEnabled(!!s?.email?.enabled);
+        setEmailSendTo(s?.email?.to || "");
+        setEmailSubject(s?.email?.subject || "");
+        setEmailBody(s?.email?.body || "");
+      } catch (e) {
+        // ignore
+      }
+    };
+    load();
+  }, [formId]);
 
   return (
     <DndProvider backend={HTML5Backend}>

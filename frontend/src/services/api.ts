@@ -102,6 +102,8 @@ export const menusAPI = {
 // Forms API
 export const formsAPI = {
   getAll: () => api.get('/forms/getAllForms'),
+  getById: (id: string) => api.get(`/forms/getFormById/${id}`),
+  update: (id: string, formData: any) => api.put(`/forms/updateForms/${id}`, formData),
   
   create: (formData: any) => api.post('/forms/createForms', formData),
   
