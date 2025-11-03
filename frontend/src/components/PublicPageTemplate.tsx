@@ -39,7 +39,7 @@ export function PublicPageTemplate({
       ? (import.meta as any).env.VITE_API_URL
       : "http://localhost:5000";
 
-    fetch(`${apiBase}/api/menus`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${apiBase}/api/menus/getAllmenu`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
         const res = await r.json();
         if (!r.ok) throw new Error(res?.message || "Failed to load menus");
