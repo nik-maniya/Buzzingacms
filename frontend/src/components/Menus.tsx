@@ -28,17 +28,147 @@ export function Menus() {
   const [lastSaved, setLastSaved] = useState<Date>(new Date());
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [isPublished, setIsPublished] = useState(true);
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Track if there are any unsaved changes
   const hasUnsavedChanges = headerUnsaved || footerUnsaved;
 
+  // Load existing menu on mount
+  useEffect(() => {
+    const loadMenu = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      const apiBase = (import.meta as any).env?.VITE_API_URL
+        ? (import.meta as any).env.VITE_API_URL
+        : "http://localhost:5000";
+
+      try {
+        // Always load the list initially to avoid calling getMenuById with null
+        const resp = await fetch(`${apiBase}/api/menus/getAllmenu`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await resp.json();
+        if (resp.ok && json.data) {
+          const menus = Array.isArray(json.data) ? json.data : [];
+          // Prefer a global menu, then header/footer, else the first
+          const menu = menus.find((m: any) => m.location === "global")
+            || menus.find((m: any) => m.location === "header" || m.location === "footer")
+            || menus[0];
+
+          if (menu) {
+            setMenuId(menu.id);
+
+            // Load header data
+            if (menu.header && typeof menu.header === 'object') {
+              setHeaderContent(menu.header.html || menu.header.content || headerContent);
+              setHeaderCss(menu.header.css || "");
+              setHeaderJs(menu.header.js || "");
+            }
+
+            // Load footer data
+            if (menu.footer && typeof menu.footer === 'object') {
+              setFooterContent(menu.footer.html || menu.footer.content || footerContent);
+              setFooterCss(menu.footer.css || "");
+              setFooterJs(menu.footer.js || "");
+            }
+
+            if (menu.updatedAt) {
+              setLastSaved(new Date(menu.updatedAt));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load menu:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMenu();
+  }, []);
+
+  const saveMenu = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast.error("Please log in to save menus");
+      return;
+    }
+
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    const menuData = {
+      name: "Global Menu",
+      slug: "global-menu",
+      location: "global",
+      items: [],
+      header: {
+        html: headerContent,
+        css: headerCss,
+        js: headerJs,
+      },
+      footer: {
+        html: footerContent,
+        css: footerCss,
+        js: footerJs,
+      },
+    };
+
+    try {
+      let response;
+      if (menuId) {
+        // Update existing menu
+        response = await fetch(`${apiBase}/api/menus/updateMenu/${menuId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(menuData),
+        });
+      } else {
+        // Create new menu
+        response = await fetch(`${apiBase}/api/menus/cerateMenu`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(menuData),
+        });
+      }
+
+      const res = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(res?.message || "Failed to save menu");
+      }
+
+      // Update menu ID if it's a new menu
+      if (!menuId && res.data?.id) {
+        setMenuId(res.data.id);
+      }
+
+      return res;
+    } catch (error: any) {
+      console.error("Save error:", error);
+      throw error;
+    }
+  }, [menuId, headerContent, headerCss, headerJs, footerContent, footerCss, footerJs]);
+
   // Auto-save functionality
-  const autoSave = useCallback(() => {
+  const autoSave = useCallback(async () => {
     if (hasUnsavedChanges) {
       setAutoSaveStatus("saving");
       
-      // Simulate auto-save delay
-      setTimeout(() => {
+      try {
+        await saveMenu();
         setHeaderUnsaved(false);
         setFooterUnsaved(false);
         setLastSaved(new Date());
@@ -49,9 +179,12 @@ export function Menus() {
         setTimeout(() => {
           setAutoSaveStatus("idle");
         }, 2000);
-      }, 500);
+      } catch (error) {
+        setAutoSaveStatus("idle");
+        console.error("Auto-save failed:", error);
+      }
     }
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, saveMenu]);
 
   // Auto-save every 10 seconds
   useEffect(() => {
@@ -92,11 +225,11 @@ export function Menus() {
     setFooterUnsaved(true);
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     setAutoSaveStatus("saving");
     
-    // Simulate save delay
-    setTimeout(() => {
+    try {
+      await saveMenu();
       setHeaderUnsaved(false);
       setFooterUnsaved(false);
       setLastSaved(new Date());
@@ -107,21 +240,27 @@ export function Menus() {
       setTimeout(() => {
         setAutoSaveStatus("idle");
       }, 2000);
-    }, 500);
+    } catch (error: any) {
+      setAutoSaveStatus("idle");
+      toast.error(error?.message || "Failed to save menus");
+    }
   };
 
-  const handlePublish = () => {
-    // First save, then publish
+  const handlePublish = async () => {
     setAutoSaveStatus("saving");
     
-    setTimeout(() => {
+    try {
+      await saveMenu();
       setHeaderUnsaved(false);
       setFooterUnsaved(false);
       setLastSaved(new Date());
       setIsPublished(true);
       setAutoSaveStatus("idle");
-      toast.success("Menus published");
-    }, 500);
+      toast.success("Menus published successfully");
+    } catch (error: any) {
+      setAutoSaveStatus("idle");
+      toast.error(error?.message || "Failed to publish menus");
+    }
   };
 
   const formatDate = (date: Date) => {
