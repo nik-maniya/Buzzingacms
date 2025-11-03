@@ -124,19 +124,12 @@ export function PublicPageTemplate({
       {mergedCss ? (
         <style dangerouslySetInnerHTML={{ __html: mergedCss }} />
       ) : null}
-      {/* Header Section */}
-      <header className="w-full bg-neutral-900 border-b border-neutral-800">
-        <div className="max-w-[1200px] mx-auto px-6 py-6">
-          {globalHeaderHtml || headerContent ? (
-            <div
-              className="prose prose-invert max-w-none [&_a]:text-yellow-400 [&_a:hover]:text-yellow-500 [&_h1]:text-neutral-100 [&_h2]:text-neutral-100 [&_h3]:text-neutral-100 [&_p]:text-neutral-300"
-              dangerouslySetInnerHTML={createMarkup(globalHeaderHtml || headerContent)}
-            />
-          ) : (
-            <div className="text-neutral-400 text-sm">No header content</div>
-          )}
-        </div>
-      </header>
+      {/* Header Section (no static styling) */}
+      {(globalHeaderHtml || headerContent) ? (
+        <div
+          dangerouslySetInnerHTML={createMarkup(globalHeaderHtml || headerContent)}
+        />
+      ) : null}
 
       {/* Body Section */}
       <main className="flex-1 w-full">
@@ -155,19 +148,12 @@ export function PublicPageTemplate({
         </article>
       </main>
 
-      {/* Footer Section */}
-      <footer className="w-full bg-neutral-100 border-t border-neutral-200">
-        <div className="max-w-[1200px] mx-auto px-6 py-10">
-          {globalFooterHtml || footerContent ? (
-            <div
-              className="prose prose-sm prose-neutral max-w-none [&_a]:text-neutral-600 [&_a:hover]:text-neutral-900 [&_h1]:text-neutral-900 [&_h2]:text-neutral-900 [&_h3]:text-neutral-800 [&_p]:text-neutral-600"
-              dangerouslySetInnerHTML={createMarkup(globalFooterHtml || footerContent)}
-            />
-          ) : (
-            <div className="text-neutral-400 text-sm">No footer content</div>
-          )}
-        </div>
-      </footer>
+      {/* Footer Section (no static styling) */}
+      {(globalFooterHtml || footerContent) ? (
+        <div
+          dangerouslySetInnerHTML={createMarkup(globalFooterHtml || footerContent)}
+        />
+      ) : null}
       
       {/* Script mount point - custom JS will be injected here and executed */}
       <div ref={scriptMountRef} />
