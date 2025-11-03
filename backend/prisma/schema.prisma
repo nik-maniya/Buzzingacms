@@ -97,10 +97,12 @@ model Media {
 model Menu {
   id        String   @id @default(uuid())
   name      String
-  slug      String   @unique
+  slug      String   
   location  String?
   items     Json
   authorId  String
+  header    Json?    // { html, css, js }
+  footer    Json?    // { html, css, js }
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
