@@ -18,7 +18,7 @@ export const createMenu = async (req: AuthRequest, res: Response, next: NextFunc
 
         // Check if slug already exists for this author
         const existingMenu = await prisma.menu.findFirst({
-            where: { 
+            where: {
                 slug,
                 authorId: req.user.id,
             },
@@ -83,6 +83,74 @@ export const getMenuById = async (req: AuthRequest, res: Response, next: NextFun
         });
     }
     catch (error) {
+        next(error);
+    }
+}
+
+export const updateMenu = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const { name, slug, location, items } = req.body;
+
+        const existingMenu = await prisma.menu.findUnique({
+            where: { id },
+        });
+
+        if (!existingMenu) {
+            throw new ApiError('Menu not found', 404);
+        }
+
+        // If slug is being changed, check if new slug exists for the same author
+        if (slug && slug !== existingMenu.slug) {
+            const slugExists = await prisma.menu.findFirst({
+                where: {
+                    slug,
+                    authorId: existingMenu.authorId,
+                    NOT: { id },
+                },
+            });
+
+            if (slugExists) {
+                throw new ApiError('A menu with this slug already exists', 400);
+            }
+        }
+
+        // Validate header and footer structure if provided
+        if (req.body.header && typeof req.body.header !== 'object') {
+            throw new ApiError('Header must be an object with html, css, and js properties', 400);
+        }
+
+        if (req.body.footer && typeof req.body.footer !== 'object') {
+            throw new ApiError('Footer must be an object with html, css, and js properties', 400);
+        }
+
+        const menu = await prisma.menu.update({
+            where: { id },
+            data: {
+                ...(name && { name }),
+                ...(slug && { slug }),
+                ...(location !== undefined && { location }),
+                ...(items !== undefined && { items: items || [] }),
+                ...(req.body.header !== undefined && { header: (req.body.header ?? null) as any }),
+                ...(req.body.footer !== undefined && { footer: (req.body.footer ?? null) as any }),
+            },
+            include: {
+                author: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({
+            success: true,
+            message: 'Menu updated successfully',
+            data: menu,
+        });
+    } catch (error) {
         next(error);
     }
 }
