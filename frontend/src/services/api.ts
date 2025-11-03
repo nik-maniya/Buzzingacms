@@ -107,6 +107,8 @@ export const formsAPI = {
   
   submitResponse: (formId: string, responseData: any) =>
     api.post(`/forms/${formId}/responses`, responseData),
+  
+  delete: (formId: string) => api.delete(`/forms/deleteForms/${formId}`),
 };
 
 // Health check
