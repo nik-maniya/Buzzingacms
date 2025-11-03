@@ -2,42 +2,12 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
-import { createForm, deleteForm, getFormById, updateForm } from '../controller/formController.js';
+import { createForm, deleteForm, getAllForms, getFormById, updateForm } from '../controller/formController.js';
 
 const router = Router();
 
 // GET /api/forms - Get all forms
-router.get('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const forms = await prisma.form.findMany({
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        _count: {
-          select: {
-            responses: true,
-          },
-        },
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-    });
-
-    res.json({
-      success: true,
-      data: forms,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
+router.get('/getAllForms', authenticate, getAllForms)
 // GET /api/forms/:id - Get single form
 router.get('/getFormById/:id', authenticate, getFormById)
 
