@@ -115,7 +115,7 @@ model Menu {
 model Form {
   id          String         @id @default(uuid())
   name        String
-  slug        String         @unique
+  slug        String         
   description String?
   fields      Json
   settings    Json?

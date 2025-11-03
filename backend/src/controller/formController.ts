@@ -10,9 +10,9 @@ export const createForm = async (req: AuthRequest, res: Response, next: NextFunc
         if (!req.user) throw new ApiError("User not authenticated", 401);
         if (!name || !slug) throw new ApiError("Name and slug are required", 400);
 
-        // Ensure slug uniqueness
-        const exists = await prisma.form.findUnique({ where: { slug } });
-        if (exists) throw new ApiError("A form with this slug already exists", 400);
+        // Ensure slug uniqueness per user (author)
+        const exists = await prisma.form.findFirst({ where: { slug, authorId: req.user.id } });
+        if (exists) throw new ApiError("A form with this slug already exists for this user", 400);
 
         const form = await prisma.form.create({
             data: {
