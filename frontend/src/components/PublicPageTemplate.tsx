@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 interface PublicPageTemplateProps {
   headerContent: string;
   bodyContent: string;
@@ -22,6 +24,39 @@ export function PublicPageTemplate({
     return { __html: html };
   };
 
+  // Container to mount executable script (dangerouslySetInnerHTML scripts don't execute in React)
+  const scriptMountRef = useRef<HTMLDivElement | null>(null);
+
+  // Inject and execute custom JS by creating a real script element
+  useEffect(() => {
+    if (!scriptMountRef.current) return;
+    
+    // Clear previous scripts
+    scriptMountRef.current.innerHTML = "";
+    
+    if (!customJs) return;
+
+    // Create and append a real script element (this WILL execute)
+    const script = document.createElement("script");
+    script.type = "text/javascript";
+    script.text = customJs;
+    scriptMountRef.current.appendChild(script);
+
+    // Dispatch DOMContentLoaded event if document is already loaded
+    // This ensures event listeners in user's code will fire
+    if (document.readyState !== "loading") {
+      try {
+        const event = new Event("DOMContentLoaded", { bubbles: true });
+        document.dispatchEvent(event);
+      } catch (e) {
+        // Fallback for older browsers
+        const event = document.createEvent("Event");
+        event.initEvent("DOMContentLoaded", true, true);
+        document.dispatchEvent(event);
+      }
+    }
+  }, [customJs]);
+
   const containerWidth =
     deviceView === "desktop"
       ? "w-full"
@@ -34,10 +69,6 @@ export function PublicPageTemplate({
       {/* Custom CSS for preview/published rendering */}
       {customCss ? (
         <style dangerouslySetInnerHTML={{ __html: customCss }} />
-      ) : null}
-      {/* Custom JS for preview/published rendering */}
-      {customJs ? (
-        <script dangerouslySetInnerHTML={ customJs } />
       ) : null}
       {/* Header Section */}
       <header className="w-full bg-neutral-900 border-b border-neutral-800">
@@ -83,6 +114,9 @@ export function PublicPageTemplate({
           )}
         </div>
       </footer>
+      
+      {/* Script mount point - custom JS will be injected here and executed */}
+      <div ref={scriptMountRef} />
     </div>
   );
 }

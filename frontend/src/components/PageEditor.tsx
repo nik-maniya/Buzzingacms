@@ -162,22 +162,42 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     mobile: "375px",
   };
 
-  const previewSrcDoc = [
-    '<!doctype html>',
-    '<html>',
-    '  <head>',
-    '    <meta charset="utf-8" />',
-    '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
-    `    <style>${cssCode || ""}</style>`,
-    '  </head>',
-    '  <body>',
-    '    <div style="padding: 2rem">',
-    '      <div class="prose" style="max-width:none;color:#171717">' + (content || '') + '</div>',
-    '    </div>',
-    '    <script>' + (jsCode || '').replace(/<\/script>/g, '<\\/script>') + '<\\/script>',
-    '  </body>',
-    '</html>'
-  ].join('\n');
+  // Escape script tags in JS code
+  const escapedJs = (jsCode || '').replace(/<\/script>/gi, '<\\/script>');
+  
+  const previewSrcDoc = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>${cssCode || ""}</style>
+  </head>
+  <body>
+    <div style="padding: 2rem">
+      <div class="prose" style="max-width:none;color:#171717">${content || ''}</div>
+    </div>
+    <script>
+      (function() {
+        ${escapedJs}
+        
+        // Ensure DOMContentLoaded event fires for any listeners
+        if (document.readyState !== 'loading') {
+          setTimeout(function() {
+            var evt;
+            try {
+              evt = new Event('DOMContentLoaded', { bubbles: true, cancelable: true });
+            } catch(e) {
+              evt = document.createEvent('Event');
+              evt.initEvent('DOMContentLoaded', true, true);
+            }
+            document.dispatchEvent(evt);
+            window.dispatchEvent(evt);
+          }, 0);
+        }
+      })();
+    </script>
+  </body>
+</html>`;
 
   return (
     <div className="flex-1 flex flex-col bg-white">
