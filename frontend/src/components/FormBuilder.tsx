@@ -13,6 +13,7 @@ import { cn } from "./ui/utils";
 import { FormField } from "./Forms";
 import { formsAPI } from "../services/api";
 import { FieldEditor } from "./FieldEditor";
+import { copyToClipboard } from "./ui/copy-to-clipboard";
 
 interface FormBuilderProps {
   formId: string | null;
@@ -226,6 +227,64 @@ export function FormBuilder({ formId, onBack }: FormBuilderProps) {
     handleSave();
   };
 
+  const slugify = (s: string) =>
+    String(s)
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+  const generateFormEmbed = () => {
+    const action = formId && formId !== "new"
+      ? `${window.location.origin}/api/forms/${formId}/responses`
+      : `${window.location.origin}/api/forms/FORM_ID/responses`;
+
+    const inputs = (fields || []).map((f) => {
+      const name = slugify(f.label || f.id);
+      const req = f.required ? " required" : "";
+      switch (f.type) {
+        case "longtext":
+          return `  <label>${f.label}\n    <textarea name="${name}" placeholder="${f.placeholder || ""}"${req}></textarea>\n  </label>`;
+        case "email":
+        case "text":
+          return `  <label>${f.label}\n    <input type="${f.type}" name="${name}" placeholder="${f.placeholder || ""}"${req} />\n  </label>`;
+        case "file":
+          return `  <label>${f.label}\n    <input type="file" name="${name}"${req} />\n  </label>`;
+        case "hidden":
+          return `  <input type="hidden" name="${name}" value="${f.defaultValue || ""}" />`;
+        case "dropdown": {
+          const opts = (f.options || []).map((o) => `      <option value="${o}">${o}</option>`).join("\n");
+          return `  <label>${f.label}\n    <select name="${name}"${req}>\n${opts}\n    </select>\n  </label>`;
+        }
+        case "radio": {
+          const radios = (f.options || []).map((o) => `    <label><input type="radio" name="${name}" value="${o}"${req} /> ${o}</label>`).join("\n");
+          return `  <fieldset>\n    <legend>${f.label}</legend>\n${radios}\n  </fieldset>`;
+        }
+        case "checkbox": {
+          return `  <label><input type="checkbox" name="${name}"${req} /> ${f.label}</label>`;
+        }
+        default:
+          return `  <label>${f.label}\n    <input type="text" name="${name}" placeholder="${f.placeholder || ""}"${req} />\n  </label>`;
+      }
+    }).join("\n\n");
+
+    const enctype = (fields || []).some((f) => f.type === "file")
+      ? " enctype=\"multipart/form-data\""
+      : "";
+
+    return `<!-- Embed: ${formName || "Form"} -->\n<form method=\"POST\" action=\"${action}\"${enctype}>\n${inputs}\n\n  <button type=\"submit\">Submit</button>\n</form>`;
+  };
+
+  const handleCopyCode = async () => {
+    if (!formId || formId === "new") {
+      toast.error("Save the form first to generate embed code");
+      return;
+    }
+    const code = generateFormEmbed();
+    const ok = await copyToClipboard(code);
+    if (ok) toast.success("Embed code copied to clipboard"); else toast.error("Failed to copy code");
+  };
+
   // Auto-generate slug from form name
   const handleFormNameChange = (name: string) => {
     setFormName(name);
@@ -287,6 +346,13 @@ export function FormBuilder({ formId, onBack }: FormBuilderProps) {
                 </h2>
               </div>
               <div className="flex items-center gap-2">
+              <Button
+                  variant="outline"
+                  onClick={handleCopyCode}
+                  disabled={!formId || formId === "new"}
+                >
+                  Copy Code
+                </Button>
                 <Button variant="outline" onClick={handleSave}>
                   Save Draft
                 </Button>
@@ -297,6 +363,7 @@ export function FormBuilder({ formId, onBack }: FormBuilderProps) {
                   <Save className="w-4 h-4 mr-2" />
                   Publish Form
                 </Button>
+
               </div>
             </div>
           </div>

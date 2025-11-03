@@ -32,6 +32,7 @@ export function FormsList({ onNewForm, onEditForm, onViewResponses }: FormsListP
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [formToDelete, setFormToDelete] = useState<string | null>(null);
+  
 
   const [forms, setForms] = useState<Form[]>([]);
 
