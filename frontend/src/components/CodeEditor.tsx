@@ -4,9 +4,10 @@ interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
   language: "css" | "javascript";
+  height?: number | string;
 }
 
-export function CodeEditor({ value, onChange, language }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, language, height }: CodeEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   return (
@@ -32,7 +33,10 @@ export function CodeEditor({ value, onChange, language }: CodeEditorProps) {
           scrollbar-color: #525252 #2d2d2d;
         }
       `}</style>
-      <div className="h-full bg-[#1e1e1e] overflow-auto code-editor-scrollbar">
+      <div
+        className="w-full bg-[#1e1e1e] overflow-auto code-editor-scrollbar"
+        style={{ height: height ?? "70vh", minHeight: 600 }}
+      >
         <div className="h-full p-4">
           <textarea
             ref={textareaRef}
