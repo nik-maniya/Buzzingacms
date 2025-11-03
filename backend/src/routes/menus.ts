@@ -2,6 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { createMenu, getMenuById } from '../controller/menuController.js';
 
 const router = Router();
 
@@ -33,82 +34,11 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
 });
 
 // GET /api/menus/:id - Get single menu
-router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const { id } = req.params;
+router.get('/getMenuById/:id', authenticate, getMenuById); 
 
-    const menu = await prisma.menu.findUnique({
-      where: { id },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    if (!menu) {
-      throw new ApiError('Menu not found', 404);
-    }
-
-    res.json({
-      success: true,
-      data: menu,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
 
 // POST /api/menus - Create menu
-router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const { name, slug, location, items } = req.body;
-
-    if (!req.user) {
-      throw new ApiError('User not authenticated', 401);
-    }
-
-    // Check if slug already exists
-    const existingMenu = await prisma.menu.findUnique({
-      where: { slug },
-    });
-
-    if (existingMenu) {
-      throw new ApiError('A menu with this slug already exists', 400);
-    }
-
-    const menu = await prisma.menu.create({
-      data: {
-        name,
-        slug,
-        location,
-        items: items || [],
-        authorId: req.user.id,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'Menu created successfully',
-      data: menu,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+router.post('/cerateMenu', authenticate, createMenu);
 
 // PUT /api/menus/:id - Update menu
 router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -135,6 +65,15 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
       }
     }
 
+    // Validate header and footer structure if provided
+    if (req.body.header && typeof req.body.header !== 'object') {
+      throw new ApiError('Header must be an object with html, css, and js properties', 400);
+    }
+
+    if (req.body.footer && typeof req.body.footer !== 'object') {
+      throw new ApiError('Footer must be an object with html, css, and js properties', 400);
+    }
+
     const menu = await prisma.menu.update({
       where: { id },
       data: {
@@ -142,6 +81,17 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
         ...(slug && { slug }),
         ...(location !== undefined && { location }),
         ...(items && { items }),
+        ...(req.body.header !== undefined && { header: req.body.header }),
+        ...(req.body.footer !== undefined && { footer: req.body.footer }),
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     });
 
