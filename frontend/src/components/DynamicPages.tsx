@@ -16,7 +16,7 @@ export interface Collection {
 export interface Field {
   id: string;
   name: string;
-  type: "text" | "longtext" | "image" | "dropdown" | "boolean" | "date" | "tags";
+  type: "text" | "longtext" | "image" | "dropdown" | "boolean" | "date" | "tags" | "radio";
   required: boolean;
   options?: string[];
 }

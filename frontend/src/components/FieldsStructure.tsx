@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type React from "react";
-import { Plus, GripVertical, Trash2, Type, AlignLeft, Image, ChevronDown, ToggleLeft, Calendar, Tags, Edit } from "lucide-react";
+import { Plus, GripVertical, Trash2, Type, AlignLeft, Image, ChevronDown, ToggleLeft, Calendar, Tags, Edit, Circle } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -36,6 +36,7 @@ const fieldToFormField = (field: Field, apiFieldData?: any): FormField => {
   let formFieldType: FormField["type"] = "text";
   if (field.type === "longtext") formFieldType = "longtext";
   else if (field.type === "dropdown") formFieldType = "dropdown";
+  else if (field.type === "radio") formFieldType = "radio";
   else if (field.type === "boolean") formFieldType = "checkbox";
   else if (field.type === "image") formFieldType = "file";
   else if (field.type === "date") formFieldType = "text"; // Date can use text input
@@ -62,6 +63,7 @@ const formFieldToField = (formField: FormField, preserveOriginalType?: string): 
     collectionType = preserveOriginalType as Field["type"];
   } else if (formField.type === "longtext") collectionType = "longtext";
   else if (formField.type === "dropdown") collectionType = "dropdown";
+  else if (formField.type === "radio") collectionType = "radio";
   else if (formField.type === "checkbox") collectionType = "boolean";
   else if (formField.type === "file") collectionType = "image";
   else collectionType = "text";
@@ -83,7 +85,7 @@ const fieldIcons = {
   boolean: ToggleLeft,
   date: Calendar,
   tags: Tags,
-  
+  radio: Circle,
 };
 
 const fieldTypeLabels = {
@@ -94,6 +96,7 @@ const fieldTypeLabels = {
   boolean: "Boolean",
   date: "Date",
   tags: "Tags",
+  radio: "Radio",
 };
 
 export function FieldsStructure({ collection }: FieldsStructureProps) {
@@ -380,7 +383,7 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
       {/* Fields List */}
       <div className="space-y-2">
         {fields.map((field) => {
-          const Icon = fieldIcons[field.type];
+          const Icon = fieldIcons[field.type] || Type; // Fallback to Type icon if not found
           return (
             <Card
               key={field.id}
