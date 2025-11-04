@@ -32,6 +32,7 @@ export function FieldEditor({ open, onOpenChange, field, onSave }: FieldEditorPr
     defaultValue: "",
     options: [],
   });
+  const [optionInput, setOptionInput] = useState("");
 
   useEffect(() => {
     if (field) {
@@ -126,19 +127,51 @@ export function FieldEditor({ open, onOpenChange, field, onSave }: FieldEditorPr
 
           {needsOptions && (
             <div className="space-y-2">
-              <Label htmlFor="field-options">Options (one per line)</Label>
-              <Textarea
-                id="field-options"
-                value={fieldData.options?.join("\n") || ""}
-                onChange={(e) =>
-                  setFieldData({
-                    ...fieldData,
-                    options: e.target.value.split("\n").filter((o) => o.trim()),
-                  })
-                }
-                placeholder="Option 1&#10;Option 2&#10;Option 3"
-                rows={5}
+              <Label htmlFor="field-option-input">Options</Label>
+              <div className="flex flex-wrap gap-2">
+                {(fieldData.options || []).map((opt, idx) => (
+                  <span
+                    key={`${opt}-${idx}`}
+                    className="inline-flex items-center gap-2 rounded-full bg-neutral-100 text-neutral-700 px-3 py-1 text-sm border border-neutral-200"
+                  >
+                    {opt}
+                    <button
+                      type="button"
+                      className="text-neutral-500 hover:text-neutral-800"
+                      onClick={() =>
+                        setFieldData({
+                          ...fieldData,
+                          options: (fieldData.options || []).filter((o) => o !== opt),
+                        })
+                      }
+                      aria-label={`Remove ${opt}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <Input
+                id="field-option-input"
+                value={optionInput}
+                onChange={(e) => setOptionInput(e.target.value)}
+                placeholder="Type an option and press Enter"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const value = optionInput.trim();
+                    if (!value) return;
+                    const existing = new Set(fieldData.options || []);
+                    if (existing.has(value)) { setOptionInput(""); return; }
+                    setFieldData({
+                      ...fieldData,
+                      options: [...(fieldData.options || []), value],
+                    });
+                    setOptionInput("");
+                  }
+                }}
               />
+              <p className="text-xs text-neutral-500">Press Enter to add. Options appear above, side by side.</p>
             </div>
           )}
 

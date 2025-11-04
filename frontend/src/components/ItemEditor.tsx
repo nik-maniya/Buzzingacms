@@ -9,6 +9,7 @@ import { CodeEditor } from "./CodeEditor";
 import { ItemMetadataPanel } from "./ItemMetadataPanel";
 import { Collection, Item, Field } from "./DynamicPages";
 import { collectionFieldsAPI } from "../services/api";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 
 interface ItemEditorProps {
   collection: Collection;
@@ -238,6 +239,16 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                             placeholder={`Enter ${field.name.toLowerCase()}...`}
                             className="border-neutral-200"
                           />
+                        ) : field.type === "radio" ? (
+                          <RadioGroup
+                            id={field.id}
+                            className="border-neutral-200"
+                            defaultValue=""
+                          >
+                            {(field.options || []).map((opt) => (
+                              <RadioGroupItem key={opt} value={opt} />
+                            ))}
+                          </RadioGroup>
                         ) : (
                           <Input
                             id={field.id}
