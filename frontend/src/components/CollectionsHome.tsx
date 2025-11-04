@@ -93,6 +93,10 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editCollection, setEditCollection] = useState<Collection | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editSlug, setEditSlug] = useState("");
 
   // Fetch collections on mount
   useEffect(() => {
@@ -150,6 +154,48 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
     setCollectionName("");
     setCollectionSlug("");
     setIsDialogOpen(false);
+  };
+
+  const openEditCollection = (collection: Collection) => {
+    setEditCollection(collection);
+    setEditName(collection.name);
+    // slugPrefix like "/blog/" -> extract slug
+    const slug = collection.slugPrefix.replace(/^\//, "").replace(/\/$/, "");
+    setEditSlug(slug);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateCollection = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editCollection) return;
+    setIsSubmitting(true);
+    try {
+      const response = await collectionsAPI.update(editCollection.id, {
+        name: editName,
+        slug: editSlug,
+      });
+      if (response.data.success) {
+        // Update item in list
+        setCollections((prev) =>
+          prev.map((c) =>
+            c.id === editCollection.id
+              ? {
+                  ...c,
+                  name: editName,
+                  slugPrefix: `/${editSlug}/`,
+                }
+              : c
+          )
+        );
+        setIsEditDialogOpen(false);
+        setEditCollection(null);
+      }
+    } catch (error: any) {
+      console.error("Error updating collection:", error);
+      alert(error.response?.data?.message || "Failed to update collection");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteCollection = async (collectionId: string) => {
@@ -210,6 +256,7 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
                 collection={collection}
                 onOpen={() => onOpenCollection(collection)}
                 onDelete={() => handleDeleteCollection(collection.id)}
+                onEdit={() => openEditCollection(collection)}
               />
             ))}
           </div>
@@ -258,6 +305,52 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
                 disabled={isSubmitting}
               >
                 {isSubmitting ? "Creating..." : "Create Collection"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Collection Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-[425px] w-[calc(100%-2rem)]">
+          <DialogHeader>
+            <DialogTitle>Edit Collection</DialogTitle>
+            <DialogDescription>Update the collection name and slug.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateCollection}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-collection-name">Collection Name</Label>
+                <Input
+                  id="edit-collection-name"
+                  placeholder="e.g., Blog, Services, Products"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-collection-slug">Slug</Label>
+                <Input
+                  id="edit-collection-slug"
+                  placeholder="e.g., blog, services, products"
+                  value={editSlug}
+                  onChange={(e) => setEditSlug(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>
           </form>

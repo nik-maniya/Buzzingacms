@@ -7,9 +7,10 @@ interface CollectionCardProps {
   collection: Collection;
   onOpen: () => void;
   onDelete: () => void;
+  onEdit: () => void;
 }
 
-export function CollectionCard({ collection, onOpen, onDelete }: CollectionCardProps) {
+export function CollectionCard({ collection, onOpen, onDelete, onEdit }: CollectionCardProps) {
   return (
     <Card className="group hover:shadow-lg transition-all border-neutral-200 bg-white">
       <CardHeader className="pb-3">
@@ -26,6 +27,10 @@ export function CollectionCard({ collection, onOpen, onDelete }: CollectionCardP
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 text-neutral-600 hover:text-neutral-900"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
             >
               <Settings className="w-4 h-4" />
             </Button>

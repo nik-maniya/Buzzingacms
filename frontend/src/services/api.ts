@@ -66,6 +66,8 @@ export const collectionsAPI = {
   create: (collectionData: any) => api.post('/collections/create', collectionData),
 
   delete: (id: string) => api.delete(`/collections/deleteCollection/${id}`),
+  
+  update: (id: string, collectionData: any) => api.put(`/collections/updateCollection/${id}`, collectionData),
 };
 
 // Collection Fields API
