@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Eye } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { WysiwygEditor } from "./WysiwygEditor";
 import { CodeEditor } from "./CodeEditor";
 import { ItemMetadataPanel } from "./ItemMetadataPanel";
-import { Collection, Item } from "./DynamicPages";
+import { Collection, Item, Field } from "./DynamicPages";
+import { collectionFieldsAPI } from "../services/api";
 
 interface ItemEditorProps {
   collection: Collection;
@@ -23,6 +24,48 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
   const [cssCode, setCssCode] = useState(".content {\n  padding: 2rem;\n  max-width: 800px;\n  margin: 0 auto;\n}");
   const [jsCode, setJsCode] = useState("// Item initialization\nconsole.log('Item loaded');");
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [fields, setFields] = useState<Field[]>(collection.fields);
+
+  // Fetch latest fields from API when component loads or collection changes
+  useEffect(() => {
+    const fetchFields = async () => {
+      try {
+        const response = await collectionFieldsAPI.getAll(collection.id);
+        if (response.data.success) {
+          const apiFields = response.data.data || [];
+          const transformedFields = apiFields.map((apiField: any) => {
+            // Parse options from defaultValue if it's JSON
+            let options: string[] = [];
+            if (apiField.defaultValue) {
+              try {
+                const parsed = JSON.parse(apiField.defaultValue);
+                if (Array.isArray(parsed)) {
+                  options = parsed;
+                }
+              } catch (e) {
+                // Not JSON, keep as empty array
+              }
+            }
+
+            return {
+              id: apiField.id,
+              name: apiField.fieldLabel,
+              type: apiField.fieldType as Field["type"],
+              required: apiField.required || false,
+              options: options,
+            };
+          });
+          setFields(transformedFields);
+        }
+      } catch (error) {
+        console.error("Error fetching fields:", error);
+        // Fallback to collection.fields if API fails
+        setFields(collection.fields);
+      }
+    };
+
+    fetchFields();
+  }, [collection.id]);
 
   const deviceSizes = {
     desktop: "100%",
@@ -132,7 +175,7 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                   </div>
 
                   {/* Dynamic Fields Based on Collection */}
-                  {collection.fields
+                  {fields
                     .filter((field) => field.name !== "Title" && field.name !== "Slug")
                     .map((field) => (
                       <div key={field.id} className="space-y-2">

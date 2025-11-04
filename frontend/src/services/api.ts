@@ -68,6 +68,15 @@ export const collectionsAPI = {
   delete: (id: string) => api.delete(`/collections/deleteCollection/${id}`),
 };
 
+// Collection Fields API
+export const collectionFieldsAPI = {
+  getAll: (collectionId: string) => api.get(`/collection-fields/getAllCollectionFields/${collectionId}`),
+  getById: (id: string) => api.get(`/collection-fields/getCollectionFieldById/${id}`),
+  create: (collectionFieldData: any) => api.post('/collection-fields/createCollectionField', collectionFieldData),
+  update: (id: string, collectionFieldData: any) => api.put(`/collection-fields/updateCollectionField/${id}`, collectionFieldData),
+  delete: (id: string) => api.delete(`/collection-fields/deleteCollectionField/${id}`),
+};
+
 // Media API
 export const mediaAPI = {
   getAll: () => api.get('/media'),

@@ -9,24 +9,26 @@ export const createCollectionField = async (req: AuthRequest, res: Response, nex
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
-        const existingField = await prisma.field.findFirst({
-            where: {
-                collectionId,
-                authorId: req.user.id,
-            },
+        
+        // Verify collection exists
+        const collection = await prisma.collection.findUnique({
+            where: { id: collectionId },
         });
-        if (existingField) {
-            throw new ApiError('A field with this collectionId already exists', 400);
+        
+        if (!collection) {
+            throw new ApiError('Collection not found', 404);
         }
+        
         const field = await prisma.field.create({
             data: {
                 collectionId,
+                authorId: req.user.id,
                 fieldType,
                 fieldLabel,
                 placeholder,
                 defaultValue,
-                required,
-                order,
+                required: required || false,
+                order: order ?? 0,
             },
         });
         res.json({

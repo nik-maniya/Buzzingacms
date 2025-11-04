@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, GripVertical, Trash2, Type, AlignLeft, Image, ChevronDown, ToggleLeft, Calendar, Tags, Edit } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
@@ -6,36 +6,64 @@ import { Badge } from "./ui/badge";
 import { Collection, Field } from "./DynamicPages";
 import { FieldEditor } from "./FieldEditor";
 import { FormField } from "./Forms";
+import { collectionFieldsAPI } from "../services/api";
 
 interface FieldsStructureProps {
   collection: Collection;
 }
 
-// Convert Field (Collection) to FormField
-const fieldToFormField = (field: Field): FormField => {
+// Convert Field (Collection) to FormField with placeholder and defaultValue
+const fieldToFormField = (field: Field, apiFieldData?: any): FormField => {
+  // Parse defaultValue to get options or plain value
+  let options: string[] = field.options || [];
+  let defaultValue = "";
+  
+  if (apiFieldData?.defaultValue) {
+    try {
+      const parsed = JSON.parse(apiFieldData.defaultValue);
+      if (Array.isArray(parsed)) {
+        options = parsed;
+      } else {
+        defaultValue = apiFieldData.defaultValue;
+      }
+    } catch (e) {
+      defaultValue = apiFieldData.defaultValue;
+    }
+  }
+
+  // Map collection field types to FormField types
+  let formFieldType: FormField["type"] = "text";
+  if (field.type === "longtext") formFieldType = "longtext";
+  else if (field.type === "dropdown") formFieldType = "dropdown";
+  else if (field.type === "boolean") formFieldType = "checkbox";
+  else if (field.type === "image") formFieldType = "file";
+  else if (field.type === "date") formFieldType = "text"; // Date can use text input
+  else if (field.type === "tags") formFieldType = "text";
+  else formFieldType = "text";
+
   return {
     id: field.id,
     label: field.name,
-    type: field.type === "longtext" ? "longtext" : 
-          field.type === "dropdown" ? "dropdown" :
-          field.type === "boolean" ? "checkbox" :
-          field.type === "image" ? "file" :
-          field.type === "tags" ? "text" :
-          "text",
+    type: formFieldType,
     required: field.required,
-    options: field.options,
+    options: options,
+    placeholder: apiFieldData?.placeholder || "",
+    defaultValue: defaultValue,
   };
 };
 
 // Convert FormField to Field (Collection)
-const formFieldToField = (formField: FormField): Field => {
+const formFieldToField = (formField: FormField, preserveOriginalType?: string): Field => {
   // Map FormField types back to Collection Field types
+  // If preserveOriginalType is provided (when editing), use it for date/tags
   let collectionType: Field["type"] = "text";
-  if (formField.type === "longtext") collectionType = "longtext";
+  if (preserveOriginalType && (preserveOriginalType === "date" || preserveOriginalType === "tags")) {
+    collectionType = preserveOriginalType as Field["type"];
+  } else if (formField.type === "longtext") collectionType = "longtext";
   else if (formField.type === "dropdown") collectionType = "dropdown";
   else if (formField.type === "checkbox") collectionType = "boolean";
   else if (formField.type === "file") collectionType = "image";
-  else if (formField.type === "text" || formField.type === "email" || formField.type === "hidden") collectionType = "text";
+  else collectionType = "text";
   
   return {
     id: formField.id,
@@ -71,6 +99,64 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
   const [fields, setFields] = useState<Field[]>(collection.fields);
   const [fieldEditorOpen, setFieldEditorOpen] = useState(false);
   const [editingField, setEditingField] = useState<FormField | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Store full API field data for placeholder/defaultValue
+  const [fieldDataMap, setFieldDataMap] = useState<Map<string, any>>(new Map());
+
+  // Fetch fields from API when collection changes
+  useEffect(() => {
+    const fetchFields = async () => {
+      try {
+        setLoading(true);
+        const response = await collectionFieldsAPI.getAll(collection.id);
+        if (response.data.success) {
+          const apiFields = response.data.data || [];
+          const dataMap = new Map<string, any>();
+          const transformedFields = apiFields.map((apiField: any) => {
+            // Store full API field data
+            dataMap.set(apiField.id, apiField);
+
+            // Parse options from defaultValue if it's JSON
+            let options: string[] = [];
+            let defaultValue = "";
+            if (apiField.defaultValue) {
+              try {
+                const parsed = JSON.parse(apiField.defaultValue);
+                if (Array.isArray(parsed)) {
+                  options = parsed;
+                } else {
+                  defaultValue = apiField.defaultValue;
+                }
+              } catch (e) {
+                // Not JSON, treat as plain string
+                defaultValue = apiField.defaultValue;
+              }
+            }
+
+            return {
+              id: apiField.id,
+              name: apiField.fieldLabel,
+              type: apiField.fieldType as Field["type"],
+              required: apiField.required || false,
+              options: options,
+            };
+          });
+          setFieldDataMap(dataMap);
+          setFields(transformedFields);
+        }
+      } catch (error) {
+        console.error("Error fetching fields:", error);
+        // Fallback to collection.fields if API fails
+        setFields(collection.fields);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFields();
+  }, [collection.id]);
 
   const handleAddField = () => {
     setEditingField(null);
@@ -78,25 +164,145 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
   };
 
   const handleEditField = (field: Field) => {
-    setEditingField(fieldToFormField(field));
+    const apiFieldData = fieldDataMap.get(field.id);
+    setEditingField(fieldToFormField(field, apiFieldData));
     setFieldEditorOpen(true);
   };
 
-  const handleSaveField = (formField: FormField) => {
-    const collectionField = formFieldToField(formField);
-    
-    if (editingField) {
-      // Update existing field
-      setFields(fields.map((f) => (f.id === collectionField.id ? collectionField : f)));
-    } else {
-      // Add new field
-      setFields([...fields, collectionField]);
+  const handleSaveField = async (formField: FormField) => {
+    try {
+      setIsSaving(true);
+
+      // Prepare data for API (backend format)
+      const options = formField.options || [];
+      const defaultValue = options.length > 0 
+        ? JSON.stringify(options) 
+        : formField.defaultValue || null;
+
+      if (editingField && editingField.id) {
+        // Update existing field - preserve existing order and type
+        const existingFieldData = fieldDataMap.get(editingField.id);
+        const originalType = existingFieldData?.fieldType || "text";
+        
+        // Get the collection field, preserving original type if it's date or tags
+        const collectionField = formFieldToField(formField, originalType);
+        
+        const apiData = {
+          collectionId: collection.id,
+          fieldType: collectionField.type,
+          fieldLabel: collectionField.name,
+          placeholder: formField.placeholder || null,
+          defaultValue: defaultValue,
+          required: collectionField.required || false,
+          order: existingFieldData?.order ?? fields.length, // Preserve existing order
+        };
+        const response = await collectionFieldsAPI.update(editingField.id, apiData);
+        if (response.data.success) {
+          const updatedField = response.data.data;
+          // Parse options from defaultValue
+          let options: string[] = [];
+          if (updatedField.defaultValue) {
+            try {
+              const parsed = JSON.parse(updatedField.defaultValue);
+              if (Array.isArray(parsed)) {
+                options = parsed;
+              }
+            } catch (e) {
+              // Not JSON
+            }
+          }
+
+          const transformedField: Field = {
+            id: updatedField.id,
+            name: updatedField.fieldLabel,
+            type: updatedField.fieldType as Field["type"],
+            required: updatedField.required || false,
+            options: options,
+          };
+          // Update field data map
+          setFieldDataMap((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(updatedField.id, updatedField);
+            return newMap;
+          });
+          setFields(fields.map((f) => (f.id === transformedField.id ? transformedField : f)));
+        }
+      } else {
+        // Create new field
+        const collectionField = formFieldToField(formField);
+        const apiData = {
+          collectionId: collection.id,
+          fieldType: collectionField.type,
+          fieldLabel: collectionField.name,
+          placeholder: formField.placeholder || null,
+          defaultValue: defaultValue,
+          required: collectionField.required || false,
+          order: fields.length, // Set order based on current fields count
+        };
+        const response = await collectionFieldsAPI.create(apiData);
+        if (response.data.success) {
+          const newField = response.data.data;
+          // Parse options from defaultValue
+          let options: string[] = [];
+          if (newField.defaultValue) {
+            try {
+              const parsed = JSON.parse(newField.defaultValue);
+              if (Array.isArray(parsed)) {
+                options = parsed;
+              }
+            } catch (e) {
+              // Not JSON
+            }
+          }
+
+          const transformedField: Field = {
+            id: newField.id,
+            name: newField.fieldLabel,
+            type: newField.fieldType as Field["type"],
+            required: newField.required || false,
+            options: options,
+          };
+          // Add to field data map
+          setFieldDataMap((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(newField.id, newField);
+            return newMap;
+          });
+          setFields([...fields, transformedField]);
+        }
+      }
+      setFieldEditorOpen(false);
+    } catch (error: any) {
+      console.error("Error saving field:", error);
+      alert(error.response?.data?.message || "Failed to save field");
+    } finally {
+      setIsSaving(false);
     }
-    setFieldEditorOpen(false);
   };
 
-  const handleDeleteField = (fieldId: string) => {
-    setFields(fields.filter((f) => f.id !== fieldId));
+  const handleDeleteField = async (fieldId: string) => {
+    if (!confirm("Are you sure you want to delete this field?")) {
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const response = await collectionFieldsAPI.delete(fieldId);
+      if (response.data.success) {
+        setFields(fields.filter((f) => f.id !== fieldId));
+        // Remove from field data map
+        setFieldDataMap((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(fieldId);
+          return newMap;
+        });
+      }
+    } catch (error: any) {
+      console.error("Error deleting field:", error);
+      alert(error.response?.data?.message || "Failed to delete field");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -109,6 +315,18 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
           </p>
         </div>
       </div>
+
+      {loading && (
+        <div className="flex items-center justify-center py-8">
+          <p className="text-neutral-500">Loading fields...</p>
+        </div>
+      )}
+
+      {isSaving && (
+        <div className="flex items-center justify-center py-2">
+          <p className="text-sm text-neutral-500">Saving...</p>
+        </div>
+      )}
 
       {/* Fields List */}
       <div className="space-y-2">
