@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -11,10 +11,17 @@ interface CollectionViewProps {
   collection: Collection;
   onBack: () => void;
   onEditItem: (item: Item | null) => void;
+  initialTab?: string;
 }
 
-export function CollectionView({ collection, onBack, onEditItem }: CollectionViewProps) {
-  const [activeTab, setActiveTab] = useState("items");
+export function CollectionView({ collection, onBack, onEditItem, initialTab }: CollectionViewProps) {
+  const [activeTab, setActiveTab] = useState(initialTab || "items");
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   return (
     <div className="flex-1 flex flex-col bg-white">

@@ -1,61 +1,130 @@
-import { useState } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "./ui/button";
 import { CollectionCard } from "./CollectionCard";
-import { Collection } from "./DynamicPages";
+import { Collection, Field } from "./DynamicPages";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { collectionsAPI } from "../services/api";
 
 interface CollectionsHomeProps {
-  onOpenCollection: (collection: Collection) => void;
+  onOpenCollection: (collection: Collection, tab?: string) => void;
 }
 
+// Helper function to get icon based on collection name
+const getCollectionIcon = (name: string): string => {
+  const nameLower = name.toLowerCase();
+  if (nameLower.includes("blog") || nameLower.includes("post")) return "📝";
+  if (nameLower.includes("service")) return "🧩";
+  if (nameLower.includes("case") || nameLower.includes("study")) return "📁";
+  if (nameLower.includes("product")) return "📦";
+  if (nameLower.includes("event")) return "📅";
+  return "📄";
+};
+
+// Transform API response to Collection format
+const transformCollection = (apiCollection: any): Collection => {
+  const fields = apiCollection.fields && typeof apiCollection.fields === "object" 
+    ? Object.entries(apiCollection.fields).map(([key, value]: [string, any]) => ({
+        id: key,
+        name: value.name || key,
+        type: value.type || "text",
+        required: value.required || false,
+        options: value.options,
+      }))
+    : [];
+
+  const updatedDate = new Date(apiCollection.updatedAt);
+  const lastUpdated = updatedDate.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  return {
+    id: apiCollection.id,
+    name: apiCollection.name,
+    icon: getCollectionIcon(apiCollection.name),
+    itemCount: apiCollection._count?.items || 0,
+    lastUpdated,
+    slugPrefix: `/${apiCollection.slug}/`,
+    fields: fields as Field[],
+  };
+};
+
 export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
-  const [collections] = useState<Collection[]>([
-    {
-      id: "1",
-      name: "Blog",
-      icon: "📝",
-      itemCount: 12,
-      lastUpdated: "Oct 29, 2025",
-      slugPrefix: "/blog/",
-      fields: [
-        { id: "1", name: "Title", type: "text", required: true },
-        { id: "2", name: "Slug", type: "text", required: true },
-        { id: "3", name: "Summary", type: "longtext", required: false },
-        { id: "4", name: "Body", type: "longtext", required: true },
-        { id: "5", name: "Cover Image", type: "image", required: false },
-        { id: "6", name: "Tags", type: "tags", required: false },
-      ],
-    },
-    {
-      id: "2",
-      name: "Services",
-      icon: "🧩",
-      itemCount: 6,
-      lastUpdated: "Oct 25, 2025",
-      slugPrefix: "/services/",
-      fields: [
-        { id: "1", name: "Title", type: "text", required: true },
-        { id: "2", name: "Slug", type: "text", required: true },
-        { id: "3", name: "Description", type: "longtext", required: true },
-        { id: "4", name: "Icon", type: "image", required: false },
-      ],
-    },
-    {
-      id: "3",
-      name: "Case Studies",
-      icon: "📁",
-      itemCount: 8,
-      lastUpdated: "Oct 20, 2025",
-      slugPrefix: "/case-studies/",
-      fields: [
-        { id: "1", name: "Title", type: "text", required: true },
-        { id: "2", name: "Slug", type: "text", required: true },
-        { id: "3", name: "Client", type: "text", required: true },
-        { id: "4", name: "Overview", type: "longtext", required: true },
-        { id: "5", name: "Featured Image", type: "image", required: false },
-      ],
-    },
-  ]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [collectionName, setCollectionName] = useState("");
+  const [collectionSlug, setCollectionSlug] = useState("");
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch collections on mount
+  useEffect(() => {
+    const fetchCollections = async () => {
+      try {
+        setLoading(true);
+        const response = await collectionsAPI.getAll();
+        if (response.data.success) {
+          const transformedCollections = response.data.data.map(transformCollection);
+          setCollections(transformedCollections);
+        }
+      } catch (error) {
+        console.error("Error fetching collections:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCollections();
+  }, []);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      const response = await collectionsAPI.create({
+        name: collectionName,
+        slug: collectionSlug,
+        fields: {},
+      });
+
+      if (response.data.success) {
+        // Transform and add new collection to the list
+        const newCollection = transformCollection(response.data.data);
+        setCollections((prev) => [newCollection, ...prev]);
+        
+        // Reset form and close dialog
+        setCollectionName("");
+        setCollectionSlug("");
+        setIsDialogOpen(false);
+        
+        // Redirect to the collection's Fields & Structure tab
+        onOpenCollection(newCollection, "fields");
+      }
+    } catch (error: any) {
+      console.error("Error creating collection:", error);
+      alert(error.response?.data?.message || "Failed to create collection");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setCollectionName("");
+    setCollectionSlug("");
+    setIsDialogOpen(false);
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-neutral-50">
@@ -63,7 +132,10 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
       <div className="border-b border-neutral-200 bg-white sticky top-0 z-10">
         <div className="px-8 py-4 flex items-center justify-between">
           <h2 className="text-neutral-900">Dynamic Pages</h2>
-          <Button className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500">
+          <Button 
+            className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500"
+            onClick={() => setIsDialogOpen(true)}
+          >
             <Plus className="w-4 h-4 mr-2" />
             New Collection
           </Button>
@@ -72,16 +144,81 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
 
       {/* Collections Grid */}
       <div className="p-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {collections.map((collection) => (
-            <CollectionCard
-              key={collection.id}
-              collection={collection}
-              onOpen={() => onOpenCollection(collection)}
-            />
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <p className="text-neutral-500">Loading collections...</p>
+          </div>
+        ) : collections.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <p className="text-neutral-500 mb-4">No collections found</p>
+            <Button
+              className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500"
+              onClick={() => setIsDialogOpen(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Your First Collection
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {collections.map((collection) => (
+              <CollectionCard
+                key={collection.id}
+                collection={collection}
+                onOpen={() => onOpenCollection(collection)}
+              />
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* New Collection Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-[425px] w-[calc(100%-2rem)]">
+          <DialogHeader>
+            <DialogTitle>Create New Collection</DialogTitle>
+            <DialogDescription>
+              Enter the collection name and slug to create a new collection.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="collection-name">Collection Name</Label>
+                <Input
+                  id="collection-name"
+                  placeholder="e.g., Blog, Services, Products"
+                  value={collectionName}
+                  onChange={(e) => setCollectionName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="collection-slug">Slug</Label>
+                <Input
+                  id="collection-slug"
+                  placeholder="e.g., blog, services, products"
+                  value={collectionSlug}
+                  onChange={(e) => setCollectionSlug(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleCancel}>
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Creating..." : "Create Collection"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

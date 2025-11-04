@@ -34,15 +34,18 @@ export function DynamicPages() {
   const [currentView, setCurrentView] = useState<"home" | "collection" | "item">("home");
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [initialTab, setInitialTab] = useState<string | undefined>(undefined);
 
-  const handleOpenCollection = (collection: Collection) => {
+  const handleOpenCollection = (collection: Collection, tab?: string) => {
     setSelectedCollection(collection);
     setCurrentView("collection");
+    setInitialTab(tab);
   };
 
   const handleBackToHome = () => {
     setCurrentView("home");
     setSelectedCollection(null);
+    setInitialTab(undefined);
   };
 
   const handleEditItem = (item: Item | null) => {
@@ -65,6 +68,7 @@ export function DynamicPages() {
           collection={selectedCollection}
           onBack={handleBackToHome}
           onEditItem={handleEditItem}
+          initialTab={initialTab}
         />
       )}
       {currentView === "item" && selectedCollection && (
