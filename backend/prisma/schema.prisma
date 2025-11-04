@@ -88,6 +88,7 @@ model Field {
   fieldLabel     String
   placeholder    String?
   defaultValue   String?
+  options        Json?
   required       Boolean     @default(false)
   order          Int?
   
