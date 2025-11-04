@@ -32,15 +32,41 @@ const getCollectionIcon = (name: string): string => {
 
 // Transform API response to Collection format
 const transformCollection = (apiCollection: any): Collection => {
-  const fields = apiCollection.fields && typeof apiCollection.fields === "object" 
-    ? Object.entries(apiCollection.fields).map(([key, value]: [string, any]) => ({
-        id: key,
-        name: value.name || key,
-        type: value.type || "text",
-        required: value.required || false,
-        options: value.options,
-      }))
-    : [];
+  // Handle fields from Field[] relation
+  let fields: Field[] = [];
+  if (apiCollection.fields && Array.isArray(apiCollection.fields)) {
+    fields = apiCollection.fields.map((field: any) => {
+      // Parse options from defaultValue if it's JSON
+      let options: string[] = [];
+      if (field.defaultValue) {
+        try {
+          const parsed = JSON.parse(field.defaultValue);
+          if (Array.isArray(parsed)) {
+            options = parsed;
+          }
+        } catch (e) {
+          // Not JSON, keep as empty array
+        }
+      }
+
+      return {
+        id: field.id,
+        name: field.fieldLabel,
+        type: field.fieldType as Field["type"],
+        required: field.required || false,
+        options: options,
+      };
+    });
+  } else if (apiCollection.fields && typeof apiCollection.fields === "object") {
+    // Fallback: handle JSON object format
+    fields = Object.entries(apiCollection.fields).map(([key, value]: [string, any]) => ({
+      id: key,
+      name: value.name || key,
+      type: value.type || "text",
+      required: value.required || false,
+      options: value.options || [],
+    }));
+  }
 
   const updatedDate = new Date(apiCollection.updatedAt);
   const lastUpdated = updatedDate.toLocaleDateString("en-US", {
@@ -56,7 +82,7 @@ const transformCollection = (apiCollection: any): Collection => {
     itemCount: apiCollection._count?.items || 0,
     lastUpdated,
     slugPrefix: `/${apiCollection.slug}/`,
-    fields: fields as Field[],
+    fields: fields,
   };
 };
 
@@ -126,6 +152,23 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
     setIsDialogOpen(false);
   };
 
+  const handleDeleteCollection = async (collectionId: string) => {
+    if (!confirm("Are you sure you want to delete this collection? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const response = await collectionsAPI.delete(collectionId);
+      if (response.data.success) {
+        // Remove the collection from the list
+        setCollections((prev) => prev.filter((c) => c.id !== collectionId));
+      }
+    } catch (error: any) {
+      console.error("Error deleting collection:", error);
+      // alert(error.response?.data?.message || "Failed to delete collection");
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-neutral-50">
       {/* Header */}
@@ -166,6 +209,7 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
                 key={collection.id}
                 collection={collection}
                 onOpen={() => onOpenCollection(collection)}
+                onDelete={() => handleDeleteCollection(collection.id)}
               />
             ))}
           </div>

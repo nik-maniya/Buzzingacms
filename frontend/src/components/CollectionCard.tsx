@@ -6,9 +6,10 @@ import { Collection } from "./DynamicPages";
 interface CollectionCardProps {
   collection: Collection;
   onOpen: () => void;
+  onDelete: () => void;
 }
 
-export function CollectionCard({ collection, onOpen }: CollectionCardProps) {
+export function CollectionCard({ collection, onOpen, onDelete }: CollectionCardProps) {
   return (
     <Card className="group hover:shadow-lg transition-all border-neutral-200 bg-white">
       <CardHeader className="pb-3">
@@ -32,6 +33,10 @@ export function CollectionCard({ collection, onOpen }: CollectionCardProps) {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 text-neutral-600 hover:text-red-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
             >
               <Trash2 className="w-4 h-4" />
             </Button>

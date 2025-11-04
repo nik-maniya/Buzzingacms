@@ -61,9 +61,11 @@ export const pagesAPI = {
 
 // Collections API
 export const collectionsAPI = {
-  getAll: () => api.get('/collections'),
+  getAll: () => api.get('/collections/getAll'),
   
-  create: (collectionData: any) => api.post('/collections', collectionData),
+  create: (collectionData: any) => api.post('/collections/create', collectionData),
+
+  delete: (id: string) => api.delete(`/collections/deleteCollection/${id}`),
 };
 
 // Media API

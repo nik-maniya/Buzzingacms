@@ -81,7 +81,7 @@ model CollectionItem {
 model Field {
   id             String      @id @default(uuid())
   collectionId   String
-  collection     Collection  @relation(fields: [collectionId], references: [id])
+  collection     Collection  @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   authorId    String
   author      User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   fieldType      String
