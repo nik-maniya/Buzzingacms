@@ -186,19 +186,56 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                         {field.type === "longtext" && field.name.toLowerCase().includes("body") ? (
                           <WysiwygEditor value={content} onChange={setContent} />
                         ) : field.type === "longtext" ? (
-                          <Input
+                          <textarea
                             id={field.id}
+                            rows={4}
                             placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            className="border-neutral-200"
+                            className="border border-neutral-200 rounded-md p-2"
                           />
                         ) : field.type === "image" ? (
-                          <div className="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-neutral-400 transition-colors cursor-pointer">
-                            <p className="text-sm text-neutral-500">Click to upload or drag and drop</p>
+                          <input
+                            id={field.id}
+                            type="file"
+                            accept="image/*"
+                            className="border border-neutral-200 rounded-md h-10 px-3 py-1"
+                          />
+                        ) : field.type === "boolean" ? (
+                          <div className="flex items-center gap-2">
+                            <input id={field.id} type="checkbox" className="h-4 w-4" />
+                            <span className="text-sm text-neutral-700">{`Toggle ${field.name.toLowerCase()}`}</span>
                           </div>
+                        ) : field.type === "date" ? (
+                          <Input
+                            id={field.id}
+                            type="date"
+                            className="border-neutral-200"
+                          />
                         ) : field.type === "tags" ? (
                           <Input
                             id={field.id}
                             placeholder="Add tags (comma separated)..."
+                            className="border-neutral-200"
+                          />
+                        ) : field.type === "dropdown" ? (
+                          <select
+                            id={field.id}
+                            className="border border-neutral-200 rounded-md h-10 px-3"
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              {`Select ${field.name.toLowerCase()}`}
+                            </option>
+                            {(field.options || []).map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        ) : field.type === "text" ? (
+                          <Input
+                            id={field.id}
+                            type="text"
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
                             className="border-neutral-200"
                           />
                         ) : (
