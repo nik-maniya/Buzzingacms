@@ -8,7 +8,7 @@ import { WysiwygEditor } from "./WysiwygEditor";
 import { CodeEditor } from "./CodeEditor";
 import { ItemMetadataPanel } from "./ItemMetadataPanel";
 import { Collection, Item, Field } from "./DynamicPages";
-import { collectionFieldsAPI } from "../services/api";
+import { collectionFieldsAPI, collectionItemsAPI } from "../services/api";
 
 interface ItemEditorProps {
   collection: Collection;
@@ -25,6 +25,9 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
   const [jsCode, setJsCode] = useState("// Item initialization\nconsole.log('Item loaded');");
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [fields, setFields] = useState<Field[]>(collection.fields);
+  const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
+  const [status, setStatus] = useState<"draft" | "published">(item?.status || "draft");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Fetch latest fields from API when component loads or collection changes
   useEffect(() => {
@@ -67,6 +70,30 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
     fetchFields();
   }, [collection.id]);
 
+  // Load item data when editing
+  useEffect(() => {
+    if (item) {
+      setTitle(item.title || "");
+      setSlug(item.slug || "");
+      setStatus(item.status || "draft");
+      if (item.fields) {
+        setFieldValues(item.fields);
+        if (item.fields.content) setContent(item.fields.content);
+        if (item.fields.css) setCssCode(item.fields.css);
+        if (item.fields.js) setJsCode(item.fields.js);
+      }
+    } else {
+      // Reset for new item
+      setTitle("");
+      setSlug("");
+      setStatus("draft");
+      setFieldValues({});
+      setContent("<h1>Welcome to your new item</h1><p>Start writing your content here...</p>");
+      setCssCode(".content {\n  padding: 2rem;\n  max-width: 800px;\n  margin: 0 auto;\n}");
+      setJsCode("// Item initialization\nconsole.log('Item loaded');");
+    }
+  }, [item]);
+
   const deviceSizes = {
     desktop: "100%",
     tablet: "768px",
@@ -82,6 +109,54 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "");
       setSlug(autoSlug);
+    }
+  };
+
+  const handleFieldChange = (fieldId: string, value: any) => {
+    setFieldValues((prev) => ({ ...prev, [fieldId]: value }));
+  };
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      
+      // Prepare data object with all field values
+      const itemData: Record<string, any> = {
+        title,
+        slug,
+        content,
+        css: cssCode,
+        js: jsCode,
+        ...fieldValues,
+      };
+
+      if (item) {
+        // Update existing item
+        const response = await collectionItemsAPI.update(item.id, {
+          data: itemData,
+          status,
+        });
+        if (response.data.success) {
+          alert("Item saved successfully!");
+          onBack(); // Go back to list
+        }
+      } else {
+        // Create new item
+        const response = await collectionItemsAPI.create({
+          collectionId: collection.id,
+          data: itemData,
+          status,
+        });
+        if (response.data.success) {
+          alert("Item created successfully!");
+          onBack(); // Go back to list
+        }
+      }
+    } catch (error: any) {
+      console.error("Error saving item:", error);
+      alert(error.response?.data?.message || "Failed to save item");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -108,6 +183,23 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
               </h2>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as "draft" | "published")}
+              className="border border-neutral-200 rounded-md px-3 py-1.5 text-sm"
+            >
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+            </select>
+            <Button
+              onClick={handleSave}
+              className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500"
+              disabled={isSaving || !title.trim()}
+            >
+              {isSaving ? "Saving..." : item ? "Save Changes" : "Create Item"}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -116,7 +208,7 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
         {/* Editor Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="border-b border-neutral-200 px-8">
+            {/* <div className="border-b border-neutral-200 px-8">
               <TabsList className="bg-transparent h-12 p-0 space-x-1">
                 <TabsTrigger
                   value="content"
@@ -144,7 +236,7 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                   Preview
                 </TabsTrigger>
               </TabsList>
-            </div>
+            </div> */}
 
             <div className="flex-1 overflow-hidden">
               <TabsContent value="content" className="h-full m-0 p-8 overflow-auto">
@@ -184,43 +276,66 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                           {field.required && <span className="text-red-500 ml-1">*</span>}
                         </Label>
                         {field.type === "longtext" && field.name.toLowerCase().includes("body") ? (
-                          <WysiwygEditor value={content} onChange={setContent} />
+                          <WysiwygEditor 
+                            value={fieldValues[field.id] || content} 
+                            onChange={(value) => {
+                              setContent(value);
+                              handleFieldChange(field.id, value);
+                            }} 
+                          />
                         ) : field.type === "longtext" ? (
                           <textarea
                             id={field.id}
                             rows={4}
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
                             placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            className="border border-neutral-200 rounded-md p-2"
+                            className="border border-neutral-200 rounded-md p-2 w-full"
                           />
                         ) : field.type === "image" ? (
                           <input
                             id={field.id}
                             type="file"
                             accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleFieldChange(field.id, file.name);
+                            }}
                             className="border border-neutral-200 rounded-md h-10 px-3 py-1"
                           />
                         ) : field.type === "boolean" ? (
                           <div className="flex items-center gap-2">
-                            <input id={field.id} type="checkbox" className="h-4 w-4" />
+                            <input
+                              id={field.id}
+                              type="checkbox"
+                              checked={fieldValues[field.id] || false}
+                              onChange={(e) => handleFieldChange(field.id, e.target.checked)}
+                              className="h-4 w-4"
+                            />
                             <span className="text-sm text-neutral-700">{`Toggle ${field.name.toLowerCase()}`}</span>
                           </div>
                         ) : field.type === "date" ? (
                           <Input
                             id={field.id}
                             type="date"
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
                             className="border-neutral-200"
                           />
                         ) : field.type === "tags" ? (
                           <Input
                             id={field.id}
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
                             placeholder="Add tags (comma separated)..."
                             className="border-neutral-200"
                           />
                         ) : field.type === "dropdown" ? (
                           <select
                             id={field.id}
-                            className="border border-neutral-200 rounded-md h-10 px-3"
-                            defaultValue=""
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                            className="border border-neutral-200 rounded-md h-10 px-3 w-full"
                           >
                             <option value="" disabled>
                               {`Select ${field.name.toLowerCase()}`}
@@ -235,12 +350,16 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                           <Input
                             id={field.id}
                             type="text"
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
                             placeholder={`Enter ${field.name.toLowerCase()}...`}
                             className="border-neutral-200"
                           />
                         ) : (
                           <Input
                             id={field.id}
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
                             placeholder={`Enter ${field.name.toLowerCase()}...`}
                             className="border-neutral-200"
                           />

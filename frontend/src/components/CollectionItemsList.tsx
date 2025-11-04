@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Search, Edit2, Copy, Trash2, Lock, Rocket, MoreHorizontal } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Collection, Item } from "./DynamicPages";
+import { collectionItemsAPI } from "../services/api";
 
 interface CollectionItemsListProps {
   collection: Collection;
@@ -17,33 +18,65 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("updated");
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [items] = useState<Item[]>([
-    {
-      id: "1",
-      title: "How AI speeds SDLC",
-      slug: "how-ai-speeds-sdlc",
-      status: "published",
-      lastUpdated: "Oct 29, 2025",
-      fields: {},
-    },
-    {
-      id: "2",
-      title: "Introducing ForecxtIQ",
-      slug: "introducing-forecxtiq",
-      status: "draft",
-      lastUpdated: "Oct 25, 2025",
-      fields: {},
-    },
-    {
-      id: "3",
-      title: "Building AI-native CMS",
-      slug: "building-ai-native-cms",
-      status: "published",
-      lastUpdated: "Oct 20, 2025",
-      fields: {},
-    },
-  ]);
+  // Transform API item to frontend Item format
+  const transformItem = (apiItem: any): Item => {
+    const data = apiItem.data || {};
+    const updatedDate = new Date(apiItem.updatedAt);
+    const lastUpdated = updatedDate.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    return {
+      id: apiItem.id,
+      title: data.title || "Untitled",
+      slug: data.slug || "",
+      status: (apiItem.status || "draft") as "draft" | "published",
+      lastUpdated,
+      fields: data,
+    };
+  };
+
+  // Fetch items from API
+  useEffect(() => {
+    const fetchItems = async () => {
+      try {
+        setLoading(true);
+        const response = await collectionItemsAPI.getAll(collection.id);
+        if (response.data.success) {
+          const apiItems = response.data.data || [];
+          const transformedItems = apiItems.map(transformItem);
+          setItems(transformedItems);
+        }
+      } catch (error) {
+        console.error("Error fetching items:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchItems();
+  }, [collection.id]);
+
+  const handleDeleteItem = async (itemId: string) => {
+    if (!confirm("Are you sure you want to delete this item?")) {
+      return;
+    }
+
+    try {
+      const response = await collectionItemsAPI.delete(itemId);
+      if (response.data.success) {
+        setItems(items.filter((item) => item.id !== itemId));
+      }
+    } catch (error: any) {
+      console.error("Error deleting item:", error);
+      alert(error.response?.data?.message || "Failed to delete item");
+    }
+  };
 
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -110,7 +143,20 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredItems.map((item) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-neutral-500">
+                    Loading items...
+                  </TableCell>
+                </TableRow>
+              ) : filteredItems.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-neutral-500">
+                    No items found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredItems.map((item) => (
                 <TableRow
                   key={item.id}
                   className="cursor-pointer hover:bg-neutral-50"
@@ -162,7 +208,13 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
                             <Copy className="w-4 h-4 mr-2" />
                             Duplicate
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteItem(item.id);
+                            }}
+                          >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete
                           </DropdownMenuItem>
@@ -171,7 +223,8 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
