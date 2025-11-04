@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import type React from "react";
 import { Plus, GripVertical, Trash2, Type, AlignLeft, Image, ChevronDown, ToggleLeft, Calendar, Tags, Edit } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
@@ -101,6 +102,7 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
   const [editingField, setEditingField] = useState<FormField | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   // Store full API field data for placeholder/defaultValue
   const [fieldDataMap, setFieldDataMap] = useState<Map<string, any>>(new Map());
@@ -112,7 +114,7 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
         setLoading(true);
         const response = await collectionFieldsAPI.getAll(collection.id);
         if (response.data.success) {
-          const apiFields = response.data.data || [];
+          const apiFields = (response.data.data || []).sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
           const dataMap = new Map<string, any>();
           const transformedFields = apiFields.map((apiField: any) => {
             // Store full API field data
@@ -305,6 +307,53 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
     }
   };
 
+  // Drag & Drop Handlers
+  const onDragStart = (id: string) => {
+    setDraggingId(id);
+  };
+
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>, overId: string) => {
+    e.preventDefault();
+    if (!draggingId || draggingId === overId) return;
+
+    const currentIndex = fields.findIndex((f) => f.id === draggingId);
+    const overIndex = fields.findIndex((f) => f.id === overId);
+    if (currentIndex === -1 || overIndex === -1) return;
+
+    const updated = [...fields];
+    const [moved] = updated.splice(currentIndex, 1);
+    updated.splice(overIndex, 0, moved);
+    setFields(updated);
+  };
+
+  const onDragEnd = async () => {
+    if (!draggingId) return;
+    setDraggingId(null);
+    // Persist order to backend
+    try {
+      setIsSaving(true);
+      for (let i = 0; i < fields.length; i++) {
+        const f = fields[i];
+        const apiData = {
+          collectionId: collection.id,
+          order: i,
+        } as any;
+        await collectionFieldsAPI.update(f.id, apiData);
+        // Update map orders
+        setFieldDataMap((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(f.id) as any;
+          if (existing) next.set(f.id, { ...(existing as any), order: i });
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error("Error saving fields order:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-4">
       <div className="flex items-center justify-between mb-6">
@@ -333,7 +382,14 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
         {fields.map((field) => {
           const Icon = fieldIcons[field.type];
           return (
-            <Card key={field.id} className="border-neutral-200 hover:shadow-md transition-shadow">
+            <Card
+              key={field.id}
+              className="border-neutral-200 hover:shadow-md transition-shadow"
+              draggable
+              onDragStart={() => onDragStart(field.id)}
+              onDragOver={(e) => onDragOver(e, field.id)}
+              onDragEnd={onDragEnd}
+            >
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="cursor-grab text-neutral-400 hover:text-neutral-600">
@@ -367,14 +423,14 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-neutral-600 hover:text-red-600"
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-neutral-600 hover:text-red-600"
                       onClick={() => handleDeleteField(field.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                   </div>
                 </div>
               </CardContent>

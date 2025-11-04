@@ -97,6 +97,8 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
   const [editCollection, setEditCollection] = useState<Collection | null>(null);
   const [editName, setEditName] = useState("");
   const [editSlug, setEditSlug] = useState("");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteCollectionTarget, setDeleteCollectionTarget] = useState<Collection | null>(null);
 
   // Fetch collections on mount
   useEffect(() => {
@@ -198,20 +200,22 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
     }
   };
 
-  const handleDeleteCollection = async (collectionId: string) => {
-    if (!confirm("Are you sure you want to delete this collection? This action cannot be undone.")) {
-      return;
-    }
+  const openDeleteCollection = (collection: Collection) => {
+    setDeleteCollectionTarget(collection);
+    setIsDeleteDialogOpen(true);
+  };
 
+  const confirmDeleteCollection = async () => {
+    if (!deleteCollectionTarget) return;
     try {
-      const response = await collectionsAPI.delete(collectionId);
+      const response = await collectionsAPI.delete(deleteCollectionTarget.id);
       if (response.data.success) {
-        // Remove the collection from the list
-        setCollections((prev) => prev.filter((c) => c.id !== collectionId));
+        setCollections((prev) => prev.filter((c) => c.id !== deleteCollectionTarget.id));
+        setIsDeleteDialogOpen(false);
+        setDeleteCollectionTarget(null);
       }
     } catch (error: any) {
       console.error("Error deleting collection:", error);
-      // alert(error.response?.data?.message || "Failed to delete collection");
     }
   };
 
@@ -255,7 +259,7 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
                 key={collection.id}
                 collection={collection}
                 onOpen={() => onOpenCollection(collection)}
-                onDelete={() => handleDeleteCollection(collection.id)}
+                onDelete={() => openDeleteCollection(collection)}
                 onEdit={() => openEditCollection(collection)}
               />
             ))}
@@ -308,6 +312,39 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Collection Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-[425px] w-[calc(100%-2rem)]">
+          <DialogHeader>
+            <DialogTitle>Delete Collection</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete
+              {" "}
+              <span className="font-medium text-neutral-900">
+                {deleteCollectionTarget?.name}
+              </span>
+              ? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={confirmDeleteCollection}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
