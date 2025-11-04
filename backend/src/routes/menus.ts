@@ -1,7 +1,6 @@
-import { Router, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
-import prisma from '../config/database.js';
-import { ApiError } from '../middleware/errorHandler.js';
+
 import { createMenu, deleteMenu, getAllMenus, getMenuById, updateMenu } from '../controller/menuController.js';
 
 const router = Router();
