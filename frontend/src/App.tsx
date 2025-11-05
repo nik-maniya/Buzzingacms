@@ -47,14 +47,17 @@ export default function App() {
         view = "pages";
         const pathParts = path.split("/");
         if (pathParts.length > 2) {
-          pageId = pathParts[2];
+          // Extract slug from URL (everything after /pages/)
+          pageId = pathParts.slice(2).join("/"); // Join in case slug has slashes
         }
       } else if (viewMap[path]) {
         view = viewMap[path];
       }
       
-      // Also check search params for pageId
-      if (searchParams.has("pageId")) {
+      // Also check search params for pageSlug (for backward compatibility)
+      if (searchParams.has("pageSlug")) {
+        pageId = searchParams.get("pageSlug");
+      } else if (searchParams.has("pageId")) {
         pageId = searchParams.get("pageId");
       }
       
@@ -95,11 +98,12 @@ export default function App() {
       path = viewToPath[activeView];
     }
     
-    // Add pageId to URL if editing a page
+    // Add page slug to URL if editing a page
     if (activeView === "pages" && editingPageId) {
+      // Use slug in URL path
       path = `/pages/${editingPageId}`;
     } else if (editingPageId) {
-      searchParams.set("pageId", editingPageId);
+      searchParams.set("pageSlug", editingPageId);
     }
     
     const url = path + (searchParams.toString() ? `?${searchParams.toString()}` : "");
@@ -164,7 +168,9 @@ export default function App() {
           view = viewMap[path];
         }
         
-        if (searchParams.has("pageId")) {
+        if (searchParams.has("pageSlug")) {
+          pageId = searchParams.get("pageSlug");
+        } else if (searchParams.has("pageId")) {
           pageId = searchParams.get("pageId");
         }
         
@@ -229,7 +235,7 @@ export default function App() {
       )}
 
       {activeView === "pages" && editingPageId && (
-        <PageEditor pageId={editingPageId} onBack={handleBackToList} />
+        <PageEditor pageId={editingPageId === "new" ? "new" : editingPageId} onBack={handleBackToList} />
       )}
 
       {activeView === "dynamic-pages" && <DynamicPages />}

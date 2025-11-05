@@ -11,7 +11,7 @@ import { WysiwygEditor } from "./WysiwygEditor";
 import { PagePreview } from "./PagePreview";
 
 interface PageEditorProps {
-  pageId: string;
+  pageId: string; // Can be ID, slug, or "new"
   onBack: () => void;
 }
 

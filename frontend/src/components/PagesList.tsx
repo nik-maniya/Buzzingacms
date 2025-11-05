@@ -28,6 +28,7 @@ import { PagesLivePreview } from "./PagesLivePreview";
 
 export interface Page {
   id: string;
+  slug: string;
   title: string;
   status: "published" | "draft";
   lastUpdated: string;
@@ -35,7 +36,7 @@ export interface Page {
 }
 
 interface PagesListProps {
-  onEditPage: (pageId: string) => void;
+  onEditPage: (pageSlug: string) => void;
   onNewPage: () => void;
 }
 
@@ -65,6 +66,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
         const data = res?.data || [];
         const mapped: Page[] = data.map((p: any) => ({
           id: p.id,
+          slug: p.slug || p.id,
           title: p.title,
           status: p.status === "PUBLISHED" ? "published" : "draft",
           lastUpdated: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "",
@@ -193,7 +195,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
                 <TableRow 
                   key={page.id} 
                   className="cursor-pointer hover:bg-neutral-50"
-                  onClick={() => onEditPage(page.id)}
+                  onClick={() => onEditPage(page.slug)}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <input
@@ -227,7 +229,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
-                        onClick={() => onEditPage(page.id)}
+                        onClick={() => onEditPage(page.slug)}
                       >
                         <Edit2 className="w-4 h-4" />
                       </Button>

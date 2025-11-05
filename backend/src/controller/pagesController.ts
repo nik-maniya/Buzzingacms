@@ -98,10 +98,20 @@ export const updatePage = async (req: AuthRequest, res: Response, next: NextFunc
         const { id } = req.params;
         const { title, slug, content, customCss, customJs, status, description, keywords, ogImage, isHomePage } = req.body;
 
-        // Check if page exists
-        const existingPage = await prisma.page.findUnique({
+        // Try to find by ID first, then by slug
+        let existingPage = await prisma.page.findUnique({
             where: { id },
         });
+
+        // If not found by ID, try to find by slug
+        if (!existingPage && req.user) {
+            existingPage = await prisma.page.findFirst({
+                where: { 
+                    slug: id,
+                    authorId: req.user.id,
+                },
+            });
+        }
 
         if (!existingPage) {
             throw new ApiError('Page not found', 404);
@@ -121,13 +131,13 @@ export const updatePage = async (req: AuthRequest, res: Response, next: NextFunc
         // If setting this page as home, unset others for this user
         if (req.user && isHomePage === true) {
             await prisma.page.updateMany({
-                where: { authorId: req.user.id, id: { not: id } } as any,
+                where: { authorId: req.user.id, id: { not: existingPage.id } } as any,
                 data: { isHomePage: false } as any,
             } as any);
         }
 
         const page = await prisma.page.update({
-            where: { id },
+            where: { id: existingPage.id },
             data: {
                 ...(title && { title }),
                 ...(slug && { slug }),
@@ -165,17 +175,28 @@ export const deletePage = async (req: AuthRequest, res: Response, next: NextFunc
     try {
         const { id } = req.params;
 
-        // Check if page exists
-        const existingPage = await prisma.page.findUnique({
+        // Try to find by ID first, then by slug
+        let page = await prisma.page.findUnique({
             where: { id },
         });
 
-        if (!existingPage) {
+        // If not found by ID, try to find by slug
+        if (!page && req.user) {
+            page = await prisma.page.findFirst({
+                where: { 
+                    slug: id,
+                    authorId: req.user.id,
+                },
+            });
+        }
+
+        if (!page) {
             throw new ApiError('Page not found', 404);
         }
 
+        // Delete using the actual page ID
         await prisma.page.delete({
-            where: { id },
+            where: { id: page.id },
         });
 
         res.json({
@@ -185,4 +206,4 @@ export const deletePage = async (req: AuthRequest, res: Response, next: NextFunc
     } catch (error) {
         next(error);
     }
-}
+};

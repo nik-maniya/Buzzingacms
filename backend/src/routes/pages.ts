@@ -9,12 +9,13 @@ const router = Router();
 // GET /api/pages - Get all pages
 router.get('/', authenticate, getAllPages) 
 
-// GET /api/pages/:id - Get single page
+// GET /api/pages/:id - Get single page (supports both ID and slug)
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
 
-    const page = await prisma.page.findUnique({
+    // Try to find by ID first, then by slug
+    let page = await prisma.page.findUnique({
       where: { id },
       include: {
         author: {
@@ -26,6 +27,25 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
         },
       },
     });
+
+    // If not found by ID, try to find by slug
+    if (!page) {
+      page = await prisma.page.findFirst({
+        where: { 
+          slug: id,
+          authorId: req.user?.id,
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+    }
 
     if (!page) {
       throw new ApiError('Page not found', 404);
