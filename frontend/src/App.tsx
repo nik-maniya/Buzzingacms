@@ -123,6 +123,16 @@ export default function App() {
     window.history.replaceState({}, "", "/");
   };
 
+  const handleViewChange = (view: string) => {
+    // Clear editingPageId when switching views
+    // If switching to pages from pages, clear to show list
+    // If switching away from pages, also clear
+    if (view !== "pages" || (view === "pages" && editingPageId)) {
+      setEditingPageId(null);
+    }
+    setActiveView(view);
+  };
+
   const handleEditPage = (pageId: string) => {
     setEditingPageId(pageId);
   };
@@ -226,7 +236,7 @@ export default function App() {
     <div className="flex h-screen bg-white overflow-hidden">
       <Sidebar 
         activeView={activeView} 
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
         onLogout={handleLogout}
       />
       

@@ -4,10 +4,12 @@ import { Plus, GripVertical, Trash2, Type, AlignLeft, Image, ChevronDown, Toggle
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Collection, Field } from "./DynamicPages";
 import { FieldEditor } from "./FieldEditor";
 import { FormField } from "./Forms";
 import { collectionFieldsAPI } from "../services/api";
+import { toast } from "sonner";
 
 interface FieldsStructureProps {
   collection: Collection;
@@ -106,6 +108,8 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [fieldToDelete, setFieldToDelete] = useState<Field | null>(null);
 
   // Store full API field data for placeholder/defaultValue
   const [fieldDataMap, setFieldDataMap] = useState<Map<string, any>>(new Map());
@@ -277,34 +281,41 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
         }
       }
       setFieldEditorOpen(false);
+      toast.success(editingField ? "Field updated successfully!" : "Field created successfully!");
     } catch (error: any) {
       console.error("Error saving field:", error);
-      alert(error.response?.data?.message || "Failed to save field");
+      toast.error(error.response?.data?.message || "Failed to save field");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDeleteField = async (fieldId: string) => {
-    if (!confirm("Are you sure you want to delete this field?")) {
-      return;
-    }
+  const handleDeleteField = (field: Field) => {
+    setFieldToDelete(field);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteField = async () => {
+    if (!fieldToDelete) return;
 
     try {
       setIsSaving(true);
-      const response = await collectionFieldsAPI.delete(fieldId);
+      const response = await collectionFieldsAPI.delete(fieldToDelete.id);
       if (response.data.success) {
-        setFields(fields.filter((f) => f.id !== fieldId));
+        setFields(fields.filter((f) => f.id !== fieldToDelete.id));
         // Remove from field data map
         setFieldDataMap((prev) => {
           const newMap = new Map(prev);
-          newMap.delete(fieldId);
+          newMap.delete(fieldToDelete.id);
           return newMap;
         });
+        toast.success("Field deleted successfully!");
+        setIsDeleteDialogOpen(false);
+        setFieldToDelete(null);
       }
     } catch (error: any) {
       console.error("Error deleting field:", error);
-      alert(error.response?.data?.message || "Failed to delete field");
+      toast.error(error.response?.data?.message || "Failed to delete field");
     } finally {
       setIsSaving(false);
     }
@@ -430,7 +441,7 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
                     variant="ghost"
                     size="sm"
                     className="h-8 w-8 p-0 text-neutral-600 hover:text-red-600"
-                      onClick={() => handleDeleteField(field.id)}
+                    onClick={() => handleDeleteField(field)}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -459,6 +470,39 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
         field={editingField}
         onSave={handleSaveField}
       />
+
+      {/* Delete Field Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-[425px] w-[calc(100%-2rem)]">
+          <DialogHeader>
+            <DialogTitle>Delete Field</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the field
+              {" "}
+              <span className="font-medium text-neutral-900">
+                {fieldToDelete?.name}
+              </span>
+              ? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={confirmDeleteField}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -24,7 +24,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
   }, [initialTab]);
 
   return (
-    <div className="flex-1 flex flex-col bg-white overflow-hidden">
+    <div className="flex-1 flex flex-col bg-white overflow-y-auto">
       {/* Header */}
       <div className="border-b border-neutral-200 bg-white sticky top-0 z-10">
         <div className="px-8 py-4 flex items-center justify-between">
@@ -48,7 +48,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
       </div>
 
       {/* Tabs */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-y-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
           <div className="border-b border-neutral-200 px-8 bg-white">
             <TabsList className="bg-transparent h-12 p-0 space-x-1">
