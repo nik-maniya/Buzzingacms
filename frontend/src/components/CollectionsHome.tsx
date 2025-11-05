@@ -14,6 +14,7 @@ import {
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { collectionsAPI } from "../services/api";
+import { toast } from "sonner";
 
 interface CollectionsHomeProps {
   onOpenCollection: (collection: Collection, tab?: string) => void;
@@ -141,12 +142,14 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
         setCollectionSlug("");
         setIsDialogOpen(false);
         
+        toast.success("Collection created successfully!");
+        
         // Redirect to the collection's Fields & Structure tab
         onOpenCollection(newCollection, "fields");
       }
     } catch (error: any) {
       console.error("Error creating collection:", error);
-      alert(error.response?.data?.message || "Failed to create collection");
+      toast.error(error.response?.data?.message || "Failed to create collection");
     } finally {
       setIsSubmitting(false);
     }
@@ -189,12 +192,13 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
               : c
           )
         );
+        toast.success("Collection updated successfully!");
         setIsEditDialogOpen(false);
         setEditCollection(null);
       }
     } catch (error: any) {
       console.error("Error updating collection:", error);
-      alert(error.response?.data?.message || "Failed to update collection");
+      toast.error(error.response?.data?.message || "Failed to update collection");
     } finally {
       setIsSubmitting(false);
     }
@@ -211,16 +215,18 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
       const response = await collectionsAPI.delete(deleteCollectionTarget.id);
       if (response.data.success) {
         setCollections((prev) => prev.filter((c) => c.id !== deleteCollectionTarget.id));
+        toast.success("Collection deleted successfully!");
         setIsDeleteDialogOpen(false);
         setDeleteCollectionTarget(null);
       }
     } catch (error: any) {
       console.error("Error deleting collection:", error);
+      toast.error(error.response?.data?.message || "Failed to delete collection");
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-neutral-50">
+    <div className="flex-1 flex flex-col bg-neutral-50 overflow-hidden">
       {/* Header */}
       <div className="border-b border-neutral-200 bg-white sticky top-0 z-10">
         <div className="px-8 py-4 flex items-center justify-between">
@@ -236,7 +242,7 @@ export function CollectionsHome({ onOpenCollection }: CollectionsHomeProps) {
       </div>
 
       {/* Collections Grid */}
-      <div className="p-8">
+      <div className="flex-1 overflow-auto p-8">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <p className="text-neutral-500">Loading collections...</p>

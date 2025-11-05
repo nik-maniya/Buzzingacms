@@ -22,7 +22,7 @@ export function CollectionCard({ collection, onOpen, onDelete, onEdit }: Collect
               <p className="text-sm text-neutral-500">{collection.itemCount} items</p>
             </div>
           </div>
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+          <div className="flex gap-1">
             <Button
               variant="ghost"
               size="sm"

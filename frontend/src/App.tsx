@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { PagesList } from "./components/PagesList";
 import { PageEditor } from "./components/PageEditor";
@@ -13,18 +13,110 @@ import { Login } from "./components/Login";
 import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeView, setActiveView] = useState("pages");
-  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  // Check localStorage on mount to restore authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    const token = localStorage.getItem("token");
+    return !!token;
+  });
+  
+  // Parse URL to get initial view and pageId
+  const getInitialStateFromURL = () => {
+    try {
+      const path = window.location.pathname;
+      const searchParams = new URLSearchParams(window.location.search);
+      
+      // Map URL paths to views
+      const viewMap: Record<string, string> = {
+        "/pages": "pages",
+        "/dynamic-pages": "dynamic-pages",
+        "/media": "media",
+        "/menus": "menus",
+        "/redirects": "redirects",
+        "/domain": "domain",
+        "/forms": "forms",
+        "/public-preview": "public-preview",
+      };
+      
+      let view = "pages";
+      let pageId: string | null = null;
+      
+      // Check if path matches a view
+      if (path === "/" || path === "") {
+        view = "pages";
+      } else if (path.startsWith("/pages/")) {
+        view = "pages";
+        const pathParts = path.split("/");
+        if (pathParts.length > 2) {
+          pageId = pathParts[2];
+        }
+      } else if (viewMap[path]) {
+        view = viewMap[path];
+      }
+      
+      // Also check search params for pageId
+      if (searchParams.has("pageId")) {
+        pageId = searchParams.get("pageId");
+      }
+      
+      return { view, pageId };
+    } catch {
+      return { view: "pages", pageId: null };
+    }
+  };
+  
+  const initialState = getInitialStateFromURL();
+  const [activeView, setActiveView] = useState(initialState.view);
+  const [editingPageId, setEditingPageId] = useState<string | null>(initialState.pageId);
+
+  // Sync URL with state changes
+  useEffect(() => {
+    if (!isAuthenticated) {
+      // Clear URL when logged out
+      window.history.replaceState({}, "", "/");
+      return;
+    }
+    
+    let path = "/";
+    let searchParams = new URLSearchParams();
+    
+    // Map views to URL paths
+    const viewToPath: Record<string, string> = {
+      "pages": "/pages",
+      "dynamic-pages": "/dynamic-pages",
+      "media": "/media",
+      "menus": "/menus",
+      "redirects": "/redirects",
+      "domain": "/domain",
+      "forms": "/forms",
+      "public-preview": "/public-preview",
+    };
+    
+    if (viewToPath[activeView]) {
+      path = viewToPath[activeView];
+    }
+    
+    // Add pageId to URL if editing a page
+    if (activeView === "pages" && editingPageId) {
+      path = `/pages/${editingPageId}`;
+    } else if (editingPageId) {
+      searchParams.set("pageId", editingPageId);
+    }
+    
+    const url = path + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+    window.history.replaceState({}, "", url);
+  }, [activeView, editingPageId, isAuthenticated]);
 
   const handleLogin = () => {
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setIsAuthenticated(false);
     setActiveView("pages");
     setEditingPageId(null);
+    window.history.replaceState({}, "", "/");
   };
 
   const handleEditPage = (pageId: string) => {
@@ -38,6 +130,55 @@ export default function App() {
   const handleBackToList = () => {
     setEditingPageId(null);
   };
+  
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const path = window.location.pathname;
+        const searchParams = new URLSearchParams(window.location.search);
+        
+        const viewMap: Record<string, string> = {
+          "/pages": "pages",
+          "/dynamic-pages": "dynamic-pages",
+          "/media": "media",
+          "/menus": "menus",
+          "/redirects": "redirects",
+          "/domain": "domain",
+          "/forms": "forms",
+          "/public-preview": "public-preview",
+        };
+        
+        let view = "pages";
+        let pageId: string | null = null;
+        
+        if (path === "/" || path === "") {
+          view = "pages";
+        } else if (path.startsWith("/pages/")) {
+          view = "pages";
+          const pathParts = path.split("/");
+          if (pathParts.length > 2) {
+            pageId = pathParts[2];
+          }
+        } else if (viewMap[path]) {
+          view = viewMap[path];
+        }
+        
+        if (searchParams.has("pageId")) {
+          pageId = searchParams.get("pageId");
+        }
+        
+        setActiveView(view);
+        setEditingPageId(pageId);
+      } catch {
+        setActiveView("pages");
+        setEditingPageId(null);
+      }
+    };
+    
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const renderPlaceholderView = (view: string) => {
     const viewTitles: Record<string, string> = {

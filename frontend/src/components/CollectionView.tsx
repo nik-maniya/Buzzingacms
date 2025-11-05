@@ -24,7 +24,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
   }, [initialTab]);
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
+    <div className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Header */}
       <div className="border-b border-neutral-200 bg-white sticky top-0 z-10">
         <div className="px-8 py-4 flex items-center justify-between">

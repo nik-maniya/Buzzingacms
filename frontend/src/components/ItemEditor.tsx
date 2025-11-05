@@ -10,6 +10,7 @@ import { ItemMetadataPanel } from "./ItemMetadataPanel";
 import { Collection, Item, Field } from "./DynamicPages";
 import { collectionFieldsAPI, collectionItemsAPI } from "../services/api";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { toast } from "sonner";
 
 interface ItemEditorProps {
   collection: Collection;
@@ -138,7 +139,7 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
           status,
         });
         if (response.data.success) {
-          alert("Item saved successfully!");
+          toast.success("Item saved successfully!");
           onBack(); // Go back to list
         }
       } else {
@@ -149,20 +150,20 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
           status,
         });
         if (response.data.success) {
-          alert("Item created successfully!");
+          toast.success("Item created successfully!");
           onBack(); // Go back to list
         }
       }
     } catch (error: any) {
       console.error("Error saving item:", error);
-      alert(error.response?.data?.message || "Failed to save item");
+      toast.error(error.response?.data?.message || "Failed to save item");
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
+    <div className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Header */}
       <div className="border-b border-neutral-200 bg-white sticky top-0 z-10">
         <div className="px-8 py-4 flex items-center justify-between">

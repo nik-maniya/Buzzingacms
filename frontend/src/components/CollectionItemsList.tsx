@@ -6,8 +6,10 @@ import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Collection, Item } from "./DynamicPages";
 import { collectionItemsAPI } from "../services/api";
+import { toast } from "sonner";
 
 interface CollectionItemsListProps {
   collection: Collection;
@@ -20,6 +22,8 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
   const [sortBy, setSortBy] = useState("updated");
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
 
   // Transform API item to frontend Item format
   const transformItem = (apiItem: any): Item => {
@@ -62,19 +66,25 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
     fetchItems();
   }, [collection.id]);
 
-  const handleDeleteItem = async (itemId: string) => {
-    if (!confirm("Are you sure you want to delete this item?")) {
-      return;
-    }
+  const openDeleteDialog = (item: Item) => {
+    setItemToDelete(item);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteItem = async () => {
+    if (!itemToDelete) return;
 
     try {
-      const response = await collectionItemsAPI.delete(itemId);
+      const response = await collectionItemsAPI.delete(itemToDelete.id);
       if (response.data.success) {
-        setItems(items.filter((item) => item.id !== itemId));
+        setItems(items.filter((item) => item.id !== itemToDelete.id));
+        toast.success("Item deleted successfully!");
+        setIsDeleteDialogOpen(false);
+        setItemToDelete(null);
       }
     } catch (error: any) {
       console.error("Error deleting item:", error);
-      alert(error.response?.data?.message || "Failed to delete item");
+      toast.error(error.response?.data?.message || "Failed to delete item");
     }
   };
 
@@ -212,7 +222,7 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
                             className="text-red-600"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteItem(item.id);
+                              openDeleteDialog(item);
                             }}
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
@@ -229,6 +239,38 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
           </Table>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-[425px] w-[calc(100%-2rem)]">
+          <DialogHeader>
+            <DialogTitle>Delete Item</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the item "
+              <span className="font-medium text-neutral-900">
+                {itemToDelete?.title}
+              </span>
+              "? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={handleDeleteItem}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
