@@ -62,7 +62,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
       }
     };
     loadTemplate();
-  }, [collection.id]);
+  }, [collection.id, refreshFieldsKey]);
 
   // Function to load field names
   const loadFieldNames = useCallback(async () => {

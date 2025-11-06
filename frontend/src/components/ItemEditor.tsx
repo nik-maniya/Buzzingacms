@@ -129,6 +129,48 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
     try {
       setIsSaving(true);
       
+      // Validate required fields
+      const missingFields: string[] = [];
+      
+      // Check title (always required)
+      if (!title.trim()) {
+        missingFields.push("Title");
+      }
+      
+      // Check all required fields
+      fields.forEach((field) => {
+        if (field.required) {
+          const value = fieldValues[field.id];
+          let isEmpty = false;
+          
+          // Handle different field types
+          if (field.type === "boolean") {
+            // Boolean fields: check if value is explicitly false or undefined
+            isEmpty = value === undefined || value === null;
+          } else if (field.type === "dropdown" || field.type === "radio") {
+            // Dropdown/Radio: empty string means not selected
+            isEmpty = value === undefined || value === null || value === "";
+          } else if (field.type === "image") {
+            // Image: check if no file is selected
+            isEmpty = value === undefined || value === null || value === "";
+          } else {
+            // Text, longtext, date, tags: check if empty or whitespace
+            isEmpty = value === undefined || value === null || value === "" || (typeof value === "string" && !value.trim());
+          }
+          
+          if (isEmpty) {
+            missingFields.push(field.name);
+          }
+        }
+      });
+      
+      // If there are missing required fields, show error and stop
+      if (missingFields.length > 0) {
+        toast.error(`Please fill in all required fields: ${missingFields.join(", ")}`);
+        setIsSaving(false);
+        return;
+      }
+      
       // Prepare data object with all field values
       const itemData: Record<string, any> = {
         title,
