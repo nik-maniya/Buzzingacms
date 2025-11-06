@@ -82,6 +82,7 @@ const transformCollection = (apiCollection: any): Collection => {
     icon: getCollectionIcon(apiCollection.name),
     itemCount: apiCollection._count?.items || 0,
     lastUpdated,
+    slug: apiCollection.slug,
     slugPrefix: `/${apiCollection.slug}/`,
     fields: fields,
   };
