@@ -136,6 +136,24 @@ export const formsAPI = {
   delete: (formId: string) => api.delete(`/forms/deleteForms/${formId}`),
 };
 
+// Page Templates API
+export const pageTemplatesAPI = {
+  getAll: (collectionId: string) => api.get(`/page-templates/getAllPageTemplates/${collectionId}`),
+  getById: (id: string, itemId?: string) => {
+    const url = itemId 
+      ? `/page-templates/getPageTemplateById/${id}?itemId=${itemId}`
+      : `/page-templates/getPageTemplateById/${id}`;
+    return api.get(url);
+  },
+  create: (templateData: { collectionId: string | number; htmlContent: string }) =>
+    api.post('/page-templates/createPageTemplate', templateData),
+  update: (id: string, templateData: { name?: string; description?: string; htmlContent?: string }) =>
+    api.put(`/page-templates/updatePageTemplate/${id}`, templateData),
+  delete: (id: string) => api.delete(`/page-templates/deletePageTemplate/${id}`),
+  render: (templateId: string, itemId: string) =>
+    api.get(`/page-templates/renderTemplate/${templateId}/${itemId}`),
+};
+
 // Health check
 export const healthCheck = () => api.get('/health');
 

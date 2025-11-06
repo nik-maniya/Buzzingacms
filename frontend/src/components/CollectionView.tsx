@@ -8,7 +8,7 @@ import { FieldsStructure } from "./FieldsStructure";
 import { CollectionSettings } from "./CollectionSettings";
 import { CodeEditor } from "./CodeEditor";
 import { toast } from "sonner";
-import { collectionFieldsAPI } from "../services/api";
+import { collectionFieldsAPI, pageTemplatesAPI } from "../services/api";
 
 interface CollectionViewProps {
   collection: Collection;
@@ -23,6 +23,9 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
   const [placeholderFields, setPlaceholderFields] = useState<Field[]>([]);
   const [loadingPlaceholders, setLoadingPlaceholders] = useState(false);
   const [refreshFieldsKey, setRefreshFieldsKey] = useState(0);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
 
   useEffect(() => {
     if (initialTab) {
@@ -30,12 +33,35 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     }
   }, [initialTab]);
 
-  // Load saved template from localStorage
+  // Load saved template from API
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(`collection-template-${collection.id}`);
-      if (saved) setTemplateHtml(saved);
-    } catch {}
+    const loadTemplate = async () => {
+      try {
+        setIsLoadingTemplate(true);
+        const res = await pageTemplatesAPI.getAll(collection.id);
+        if (res.data.success && res.data.data && res.data.data.length > 0) {
+          // Get the first template (or most recent one)
+          const template = res.data.data[0];
+          setTemplateId(template.id.toString());
+          setTemplateHtml(template.htmlContent || "");
+        } else {
+          // Fallback to localStorage if no API template exists
+          try {
+            const saved = localStorage.getItem(`collection-template-${collection.id}`);
+            if (saved) setTemplateHtml(saved);
+          } catch {}
+        }
+      } catch (e) {
+        // Fallback to localStorage on error
+        try {
+          const saved = localStorage.getItem(`collection-template-${collection.id}`);
+          if (saved) setTemplateHtml(saved);
+        } catch {}
+      } finally {
+        setIsLoadingTemplate(false);
+      }
+    };
+    loadTemplate();
   }, [collection.id]);
 
   // Function to load field names
@@ -70,17 +96,43 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     setRefreshFieldsKey(prev => prev + 1);
   };
 
-  const handleSaveTemplate = () => {
+  const handleSaveTemplate = async () => {
     try {
-      localStorage.setItem(`collection-template-${collection.id}`, templateHtml || "");
-      toast.success("Template saved for this collection.");
-    } catch (e) {
-      toast.error("Failed to save template.");
+      setIsSavingTemplate(true);
+      
+      if (templateId) {
+        // Update existing template
+        await pageTemplatesAPI.update(templateId, {
+          htmlContent: templateHtml || "",
+        });
+        toast.success("Template updated successfully!");
+      } else {
+        // Create new template
+        const res = await pageTemplatesAPI.create({
+          collectionId: collection.id,
+          htmlContent: templateHtml || "",
+        });
+        if (res.data.success && res.data.data) {
+          setTemplateId(res.data.data.id.toString());
+          toast.success("Template created successfully!");
+        }
+      }
+      
+      // Also save to localStorage as backup
+      try {
+        localStorage.setItem(`collection-template-${collection.id}`, templateHtml || "");
+      } catch {}
+    } catch (e: any) {
+      console.error("Error saving template:", e);
+      toast.error(e?.response?.data?.message || "Failed to save template.");
+    } finally {
+      setIsSavingTemplate(false);
     }
   };
 
   const handleResetTemplate = () => {
     setTemplateHtml("");
+    setTemplateId(null);
     toast.message("Template cleared.");
   };
 
@@ -171,13 +223,23 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
                         <RotateCcw className="w-4 h-4 mr-2" />
                         Reset
                       </Button>
-                      <Button className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500" onClick={handleSaveTemplate}>
+                      <Button 
+                        className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500" 
+                        onClick={handleSaveTemplate}
+                        disabled={isSavingTemplate || isLoadingTemplate}
+                      >
                         <Save className="w-4 h-4 mr-2" />
-                        Save Template
+                        {isSavingTemplate ? "Saving..." : "Save Template"}
                       </Button>
                     </div>
                   </div>
-                  <CodeEditor value={templateHtml} onChange={setTemplateHtml} language="html" height={500} />
+                  {isLoadingTemplate ? (
+                    <div className="flex items-center justify-center h-[500px]">
+                      <p className="text-neutral-500">Loading template...</p>
+                    </div>
+                  ) : (
+                    <CodeEditor value={templateHtml} onChange={setTemplateHtml} language="html" height={500} />
+                  )}
                   <p className="text-sm text-neutral-500">
                     Use placeholders from the right panel inside your HTML. They will be replaced by item values when rendering.
                   </p>
