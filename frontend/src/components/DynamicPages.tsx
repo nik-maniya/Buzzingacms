@@ -25,7 +25,7 @@ export interface Item {
   id: string;
   title: string;
   slug: string;
-  status: "draft" | "published";
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   lastUpdated: string;
   fields: Record<string, any>;
 }

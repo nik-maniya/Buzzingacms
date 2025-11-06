@@ -28,7 +28,9 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [fields, setFields] = useState<Field[]>(collection.fields);
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
-  const [status, setStatus] = useState<"draft" | "published">(item?.status || "draft");
+  const [status, setStatus] = useState<"DRAFT" | "PUBLISHED" | "ARCHIVED">(
+    (item?.status?.toUpperCase() as "DRAFT" | "PUBLISHED" | "ARCHIVED") || "DRAFT"
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   // Fetch latest fields from API when component loads or collection changes
@@ -77,7 +79,12 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
     if (item) {
       setTitle(item.title || "");
       setSlug(item.slug || "");
-      setStatus(item.status || "draft");
+      const itemStatus = item.status?.toUpperCase() || "DRAFT";
+      setStatus(
+        (itemStatus === "DRAFT" || itemStatus === "PUBLISHED" || itemStatus === "ARCHIVED")
+          ? (itemStatus as "DRAFT" | "PUBLISHED" | "ARCHIVED")
+          : "DRAFT"
+      );
       if (item.fields) {
         setFieldValues(item.fields);
         if (item.fields.content) setContent(item.fields.content);
@@ -88,7 +95,7 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
       // Reset for new item
       setTitle("");
       setSlug("");
-      setStatus("draft");
+      setStatus("DRAFT");
       setFieldValues({});
       setContent("<h1>Welcome to your new item</h1><p>Start writing your content here...</p>");
       setCssCode(".content {\n  padding: 2rem;\n  max-width: 800px;\n  margin: 0 auto;\n}");
@@ -185,11 +192,12 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
           <div className="flex items-center gap-2">
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value as "draft" | "published")}
+              onChange={(e) => setStatus(e.target.value as "DRAFT" | "PUBLISHED" | "ARCHIVED")}
               className="border border-neutral-200 rounded-md px-3 py-1.5 text-sm"
             >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
+              <option value="DRAFT">Draft</option>
+              <option value="PUBLISHED">Published</option>
+              <option value="ARCHIVED">Archived</option>
             </select>
             <Button
               onClick={handleSave}

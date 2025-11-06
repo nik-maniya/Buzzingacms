@@ -35,11 +35,18 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
       year: "numeric",
     });
 
+    // Normalize status to uppercase
+    const apiStatus = (apiItem.status || "DRAFT").toUpperCase();
+    const normalizedStatus = 
+      apiStatus === "DRAFT" || apiStatus === "PUBLISHED" || apiStatus === "ARCHIVED"
+        ? (apiStatus as "DRAFT" | "PUBLISHED" | "ARCHIVED")
+        : "DRAFT";
+
     return {
       id: apiItem.id,
       title: data.title || "Untitled",
       slug: data.slug || "",
-      status: (apiItem.status || "draft") as "draft" | "published",
+      status: normalizedStatus,
       lastUpdated,
       fields: data,
     };
@@ -115,8 +122,9 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="published">Published</SelectItem>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="PUBLISHED">Published</SelectItem>
+                <SelectItem value="ARCHIVED">Archived</SelectItem>
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
@@ -177,14 +185,16 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={item.status === "published" ? "default" : "secondary"}
+                      variant={item.status === "PUBLISHED" ? "default" : "secondary"}
                       className={
-                        item.status === "published"
+                        item.status === "PUBLISHED"
                           ? "bg-green-100 text-green-700 hover:bg-green-100"
+                          : item.status === "ARCHIVED"
+                          ? "bg-orange-100 text-orange-700 hover:bg-orange-100"
                           : "bg-neutral-200 text-neutral-700 hover:bg-neutral-200"
                       }
                     >
-                      {item.status}
+                      {item.status.charAt(0) + item.status.slice(1).toLowerCase()}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-neutral-600">{item.lastUpdated}</TableCell>
@@ -203,7 +213,7 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
                         size="sm"
                         className="h-8 w-8 p-0 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
                       >
-                        {item.status === "published" ? (
+                        {item.status === "PUBLISHED" ? (
                           <Lock className="w-4 h-4" />
                         ) : (
                           <Rocket className="w-4 h-4" />

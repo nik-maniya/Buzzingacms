@@ -13,7 +13,7 @@ interface ItemMetadataPanelProps {
 }
 
 export function ItemMetadataPanel({ item }: ItemMetadataPanelProps) {
-  const [isPublished, setIsPublished] = useState(item?.status === "published");
+  const [isPublished, setIsPublished] = useState(item?.status === "PUBLISHED");
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
 
