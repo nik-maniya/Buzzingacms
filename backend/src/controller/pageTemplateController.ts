@@ -569,4 +569,3 @@ export const renderCollectionItem = async (req: AuthRequest, res: Response, next
         next(error);
     }
 };
-

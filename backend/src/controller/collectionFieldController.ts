@@ -183,10 +183,89 @@ export const deleteCollectionField = async (req: AuthRequest, res: Response, nex
             throw new ApiError('Field not found', 404);
         }
 
-        if (existingField.authorId !== req.user.id) {
+        // Convert user ID to integer for comparison
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+        if (existingField.authorId !== userIdInt) {
             throw new ApiError('Unauthorized - You can only delete your own fields', 403);
         }
 
+        // Get all collection items for this collection
+        const collectionItems = await prisma.collectionItem.findMany({
+            where: { collectionId: existingField.collectionId },
+        });
+
+        // Remove this field's data from all collection items
+        // Field data can be stored with field ID (as string) or fieldLabel as key
+        const fieldIdStr = String(fieldId);
+        const fieldLabel = existingField.fieldLabel;
+
+        for (const item of collectionItems) {
+            const itemData = (item.data || {}) as Record<string, any>;
+            const updatedData: Record<string, any> = { ...itemData };
+            
+            // Remove field data by ID (e.g., "8", "9", "11")
+            if (updatedData[fieldIdStr] !== undefined) {
+                delete updatedData[fieldIdStr];
+            }
+            
+            // Remove field data by fieldLabel
+            if (updatedData[fieldLabel] !== undefined) {
+                delete updatedData[fieldLabel];
+            }
+            
+            // Also check for lowercase/snake_case version
+            const fieldLabelLower = fieldLabel.toLowerCase().replace(/\s+/g, '_');
+            if (updatedData[fieldLabelLower] !== undefined) {
+                delete updatedData[fieldLabelLower];
+            }
+
+            // Update the item if data changed
+            if (Object.keys(updatedData).length !== Object.keys(itemData).length) {
+                await prisma.collectionItem.update({
+                    where: { id: item.id },
+                    data: { data: updatedData },
+                });
+            }
+        }
+
+        // Remove this field's placeholders from all page templates in this collection
+        const pageTemplates = await prisma.pageTemplate.findMany({
+            where: { 
+                collectionId: existingField.collectionId,
+                authorId: userIdInt,
+            },
+        });
+
+        for (const template of pageTemplates) {
+            let updatedHtml = template.htmlContent;
+            const fieldLabel = existingField.fieldLabel;
+            const fieldLabelLower = fieldLabel.toLowerCase().replace(/\s+/g, '_');
+            
+            // Remove placeholders: {{fieldLabel}} and {{field_label}}
+            const placeholderExact = `{{${fieldLabel}}}`;
+            const placeholderLower = `{{${fieldLabelLower}}}`;
+            
+            // Escape special regex characters
+            const escapedExact = placeholderExact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const escapedLower = placeholderLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            
+            // Remove all occurrences of both placeholder formats
+            updatedHtml = updatedHtml.replace(new RegExp(escapedExact, 'g'), '');
+            updatedHtml = updatedHtml.replace(new RegExp(escapedLower, 'g'), '');
+            
+            // Update template if HTML changed
+            if (updatedHtml !== template.htmlContent) {
+                await prisma.pageTemplate.update({
+                    where: { id: template.id },
+                    data: { htmlContent: updatedHtml },
+                });
+            }
+        }
+
+        // Now delete the field
         await prisma.field.delete({
             where: { id: fieldId },
         });
