@@ -126,9 +126,6 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
       const itemData: Record<string, any> = {
         title,
         slug,
-        content,
-        css: cssCode,
-        js: jsCode,
         ...fieldValues,
       };
 
