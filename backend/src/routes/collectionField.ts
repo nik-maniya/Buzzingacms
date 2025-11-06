@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createCollectionField, deleteCollectionField, getAllCollectionFields, getCollectionFieldById, updateCollectionField } from '../controller/collectionFieldController';
+import { createCollectionField, deleteCollectionField, getAllCollectionFields, getAllFieldName, getCollectionFieldById, updateCollectionField } from '../controller/collectionFieldController';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -18,6 +18,9 @@ router.get('/getCollectionFieldById/:id', authenticate, getCollectionFieldById)
 
 // DELETE /api/collection-fields/:id - Delete collection field
 router.delete('/deleteCollectionField/:id', authenticate, deleteCollectionField)
+
+// GET /api/collection-fields/getAllFieldNameCollectionWise/:collectionId - Get all field names collection wise
+router.get('/getAllFieldName/:collectionId', authenticate, getAllFieldName)
 
 
 export default router;

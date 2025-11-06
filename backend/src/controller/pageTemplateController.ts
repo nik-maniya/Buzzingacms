@@ -4,58 +4,44 @@ import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
 
 export const createPageTemplate = async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-        const { name, description, htmlContent, collectionId } = req.body;
-
+    try{
+        const { collectionId, htmlContent } = req.body;
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
-
-        const collectionIdInt = typeof collectionId === 'string' ? parseInt(collectionId, 10) : collectionId;
+        
+        // Convert user ID from string to integer
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+        
+        const collectionIdInt = parseInt(collectionId, 10);
         if (isNaN(collectionIdInt)) {
             throw new ApiError('Invalid collection ID', 400);
         }
-
+        
         // Verify collection exists and belongs to user
         const collection = await prisma.collection.findUnique({
             where: { id: collectionIdInt },
         });
-
+        
         if (!collection) {
             throw new ApiError('Collection not found', 404);
         }
-
-        if (collection.authorId !== req.user.id) {
-            throw new ApiError('Forbidden', 403);
+        
+        if (collection.authorId !== userIdInt) {
+            throw new ApiError('Unauthorized - You can only create templates for your own collections', 403);
         }
-
+        
         const template = await prisma.pageTemplate.create({
             data: {
-                name,
-                description,
-                htmlContent,
                 collectionId: collectionIdInt,
-                authorId: req.user.id,
-            },
-            include: {
-                collection: {
-                    select: {
-                        id: true,
-                        name: true,
-                        slug: true,
-                    },
-                },
-                author: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
+                htmlContent,
+                authorId: userIdInt,
             },
         });
-
-        res.status(201).json({
+        res.json({
             success: true,
             message: 'Page template created successfully',
             data: template,
@@ -73,6 +59,12 @@ export const getAllPageTemplates = async (req: AuthRequest, res: Response, next:
             throw new ApiError('User not authenticated', 401);
         }
 
+        // Convert user ID from string to integer
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
         const collectionIdInt = parseInt(collectionId, 10);
         if (isNaN(collectionIdInt)) {
             throw new ApiError('Invalid collection ID', 400);
@@ -81,7 +73,7 @@ export const getAllPageTemplates = async (req: AuthRequest, res: Response, next:
         const templates = await prisma.pageTemplate.findMany({
             where: {
                 collectionId: collectionIdInt,
-                collection: { authorId: req.user.id },
+                collection: { authorId: userIdInt },
             },
             include: {
                 collection: {
@@ -150,7 +142,13 @@ export const getPageTemplateById = async (req: AuthRequest, res: Response, next:
             throw new ApiError('Page template not found', 404);
         }
 
-        if (template.authorId !== req.user.id) {
+        // Convert user ID from string to integer
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        if (template.authorId !== userIdInt) {
             throw new ApiError('Unauthorized - You can only access your own page templates', 403);
         }
 
@@ -185,7 +183,13 @@ export const updatePageTemplate = async (req: AuthRequest, res: Response, next: 
             throw new ApiError('Page template not found', 404);
         }
 
-        if (existingTemplate.authorId !== req.user.id) {
+        // Convert user ID from string to integer
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        if (existingTemplate.authorId !== userIdInt) {
             throw new ApiError('Forbidden', 403);
         }
 
@@ -238,7 +242,13 @@ export const deletePageTemplate = async (req: AuthRequest, res: Response, next: 
             throw new ApiError('Page template not found', 404);
         }
 
-        if (existingTemplate.authorId !== req.user.id) {
+        // Convert user ID from string to integer
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        if (existingTemplate.authorId !== userIdInt) {
             throw new ApiError('Forbidden', 403);
         }
 
@@ -283,7 +293,13 @@ export const renderTemplateWithItem = async (req: AuthRequest, res: Response, ne
             throw new ApiError('Page template not found', 404);
         }
 
-        if (template.authorId !== req.user.id) {
+        // Convert user ID from string to integer
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        if (template.authorId !== userIdInt) {
             throw new ApiError('Unauthorized - You can only access your own page templates', 403);
         }
 
@@ -299,7 +315,7 @@ export const renderTemplateWithItem = async (req: AuthRequest, res: Response, ne
             throw new ApiError('Collection item not found', 404);
         }
 
-        if (item.collection.authorId !== req.user.id) {
+        if (item.collection.authorId !== userIdInt) {
             throw new ApiError('Forbidden', 403);
         }
 

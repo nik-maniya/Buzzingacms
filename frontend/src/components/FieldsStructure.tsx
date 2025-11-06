@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 interface FieldsStructureProps {
   collection: Collection;
+  onFieldsChange?: () => void;
 }
 
 // Convert Field (Collection) to FormField with placeholder and defaultValue
@@ -101,7 +102,7 @@ const fieldTypeLabels = {
   radio: "Radio",
 };
 
-export function FieldsStructure({ collection }: FieldsStructureProps) {
+export function FieldsStructure({ collection, onFieldsChange }: FieldsStructureProps) {
   const [fields, setFields] = useState<Field[]>(collection.fields);
   const [fieldEditorOpen, setFieldEditorOpen] = useState(false);
   const [editingField, setEditingField] = useState<FormField | null>(null);
@@ -282,6 +283,10 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
       }
       setFieldEditorOpen(false);
       toast.success(editingField ? "Field updated successfully!" : "Field created successfully!");
+      // Notify parent component to refresh field list
+      if (onFieldsChange) {
+        onFieldsChange();
+      }
     } catch (error: any) {
       console.error("Error saving field:", error);
       toast.error(error.response?.data?.message || "Failed to save field");
@@ -312,6 +317,10 @@ export function FieldsStructure({ collection }: FieldsStructureProps) {
         toast.success("Field deleted successfully!");
         setIsDeleteDialogOpen(false);
         setFieldToDelete(null);
+        // Notify parent component to refresh field list
+        if (onFieldsChange) {
+          onFieldsChange();
+        }
       }
     } catch (error: any) {
       console.error("Error deleting field:", error);

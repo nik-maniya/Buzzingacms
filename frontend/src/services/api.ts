@@ -73,6 +73,7 @@ export const collectionsAPI = {
 // Collection Fields API
 export const collectionFieldsAPI = {
   getAll: (collectionId: string) => api.get(`/collection-fields/getAllCollectionFields/${collectionId}`),
+  getAllFieldName: (collectionId: string) => api.get(`/collection-fields/getAllFieldName/${collectionId}`),
   getById: (id: string) => api.get(`/collection-fields/getCollectionFieldById/${id}`),
   create: (collectionFieldData: any) => api.post('/collection-fields/createCollectionField', collectionFieldData),
   update: (id: string, collectionFieldData: any) => api.put(`/collection-fields/updateCollectionField/${id}`, collectionFieldData),

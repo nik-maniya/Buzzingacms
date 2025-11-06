@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Copy, Save, RotateCcw } from "lucide-react";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -22,6 +22,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
   const [templateHtml, setTemplateHtml] = useState<string>("");
   const [placeholderFields, setPlaceholderFields] = useState<Field[]>([]);
   const [loadingPlaceholders, setLoadingPlaceholders] = useState(false);
+  const [refreshFieldsKey, setRefreshFieldsKey] = useState(0);
 
   useEffect(() => {
     if (initialTab) {
@@ -37,30 +38,37 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     } catch {}
   }, [collection.id]);
 
-  // Fetch fields for placeholders (latest from API)
+  // Function to load field names
+  const loadFieldNames = useCallback(async () => {
+    try {
+      setLoadingPlaceholders(true);
+      const res = await collectionFieldsAPI.getAllFieldName(collection.id);
+      const apiFields = (res.data?.data || []) as any[];
+      const mapped: Field[] = apiFields.map((af) => ({
+        id: af.id,
+        name: af.fieldLabel,
+        type: 'text', // Default type since getAllFieldName only returns id and fieldLabel
+        required: false,
+        options: [],
+      }));
+      setPlaceholderFields(mapped);
+    } catch (e) {
+      // fallback to incoming collection fields
+      setPlaceholderFields(collection.fields || []);
+    } finally {
+      setLoadingPlaceholders(false);
+    }
+  }, [collection.id, collection.fields]);
+
+  // Fetch field names for placeholders (using getAllFieldName API)
   useEffect(() => {
-    const load = async () => {
-      try {
-        setLoadingPlaceholders(true);
-        const res = await collectionFieldsAPI.getAll(collection.id);
-        const apiFields = (res.data?.data || []) as any[];
-        const mapped: Field[] = apiFields.map((af) => ({
-          id: af.id,
-          name: af.fieldLabel,
-          type: af.fieldType,
-          required: !!af.required,
-          options: [],
-        }));
-        setPlaceholderFields(mapped);
-      } catch (e) {
-        // fallback to incoming collection fields
-        setPlaceholderFields(collection.fields || []);
-      } finally {
-        setLoadingPlaceholders(false);
-      }
-    };
-    load();
-  }, [collection.id]);
+    loadFieldNames();
+  }, [loadFieldNames, refreshFieldsKey]);
+
+  // Callback to refresh fields when they change in FieldsStructure
+  const handleFieldsChange = () => {
+    setRefreshFieldsKey(prev => prev + 1);
+  };
 
   const handleSaveTemplate = () => {
     try {
@@ -145,7 +153,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
             </TabsContent>
 
             <TabsContent value="fields" className="h-full m-0 p-8 overflow-auto bg-neutral-50">
-              <FieldsStructure collection={collection} />
+              <FieldsStructure collection={collection} onFieldsChange={handleFieldsChange} />
             </TabsContent>
 
             <TabsContent value="settings" className="h-full m-0 p-8 overflow-auto bg-neutral-50">
@@ -186,25 +194,28 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
                         No fields found. Add fields in the "Fields & Structure" tab.
                       </div>
                     ) : (
-                      placeholderFields.map((f) => (
-                        <div key={f.id} className="flex items-center justify-between rounded border border-neutral-200 bg-white px-3 py-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="text-neutral-900">{f.name}</span>
-                            <span className="text-neutral-500">{`(id: ${f.id})`}</span>
+                      placeholderFields.map((f) => {
+                        // Convert field name to lowercase for placeholder (e.g., "Title" -> "title")
+                        const placeholderName = f.name.toLowerCase().replace(/\s+/g, '_');
+                        return (
+                          <div key={f.id} className="flex items-center justify-between rounded border border-neutral-200 bg-white px-3 py-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-neutral-900">{f.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <code className="rounded bg-neutral-100 px-1 py-0.5 text-neutral-700">{`{{${placeholderName}}}`}</code>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2"
+                                onClick={() => handleCopyPlaceholder(`{{${placeholderName}}}`)}
+                              >
+                                <Copy className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <code className="rounded bg-neutral-100 px-1 py-0.5 text-neutral-700">{`{{${f.id}}}`}</code>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2"
-                              onClick={() => handleCopyPlaceholder(`{{${f.id}}}`)}
-                            >
-                              <Copy className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                   <div className="rounded border border-neutral-200 bg-white p-3">

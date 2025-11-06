@@ -5,8 +5,8 @@ import {
     deletePageTemplate,
     getAllPageTemplates,
     getPageTemplateById,
-    updatePageTemplate,
     renderTemplateWithItem,
+    updatePageTemplate,
 } from '../controller/pageTemplateController.js';
 
 const router = Router();
