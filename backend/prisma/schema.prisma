@@ -8,13 +8,13 @@ datasource db {
 }
 
 model User {
+  id            Int            @id @default(autoincrement())
   email         String         @unique
   password      String
   name          String
   role          Role           @default(VIEWER)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  id            Int            @id @default(autoincrement())
   fields        Field[]
   collections   Collection[]
   forms         Form[]
@@ -26,6 +26,8 @@ model User {
 }
 
 model Page {
+  id          Int        @id @default(autoincrement())
+  authorId    Int
   title       String
   slug        String
   content     Json?
@@ -38,10 +40,7 @@ model Page {
   updatedAt   DateTime   @updatedAt
   customCss   String?
   customJs    String?
-  id          Int        @id @default(autoincrement())
-  authorId    Int
   author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
   @@unique([authorId, slug])
   @@index([slug])
   @@index([authorId])
@@ -50,13 +49,13 @@ model Page {
 }
 
 model Collection {
+  id            Int              @id @default(autoincrement())
+  authorId      Int
   name          String
   slug          String
   description   String?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
-  id            Int              @id @default(autoincrement())
-  authorId      Int
   fields        Field[]
   items         CollectionItem[]
   author        User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -68,12 +67,13 @@ model Collection {
 }
 
 model CollectionItem {
+   id           Int        @id @default(autoincrement())
+   collectionId Int
   data         Json
-  status       String     @default("draft")
+  status       CollectionItemStatus     @default("DRAFT")
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
-  id           Int        @id @default(autoincrement())
-  collectionId Int
+  
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 
   @@index([collectionId])
@@ -81,6 +81,9 @@ model CollectionItem {
 }
 
 model Field {
+  id           Int        @id @default(autoincrement())
+  authorId     Int
+  collectionId Int
   fieldType    String
   fieldLabel   String
   placeholder  String?
@@ -90,14 +93,12 @@ model Field {
   order        Int?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
-  id           Int        @id @default(autoincrement())
-  collectionId Int
-  authorId     Int
   author       User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 }
 
 model Media {
+  id           Int      @id @default(autoincrement())
   filename     String
   originalName String
   mimeType     String
@@ -108,13 +109,15 @@ model Media {
   caption      String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  id           Int      @id @default(autoincrement())
+  
 
   @@index([mimeType])
   @@map("media")
 }
 
 model Menu {
+  id        Int      @id @default(autoincrement())
+  authorId  Int
   name      String
   slug      String
   location  String?
@@ -123,8 +126,6 @@ model Menu {
   footer    Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  id        Int      @id @default(autoincrement())
-  authorId  Int
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([slug])
@@ -133,6 +134,8 @@ model Menu {
 }
 
 model Form {
+  id          Int            @id @default(autoincrement())
+  authorId    Int
   name        String
   slug        String
   description String?
@@ -140,8 +143,6 @@ model Form {
   settings    Json?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
-  id          Int            @id @default(autoincrement())
-  authorId    Int
   responses   FormResponse[]
   author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
@@ -151,12 +152,12 @@ model Form {
 }
 
 model FormResponse {
+  id        Int      @id @default(autoincrement())
+  formId    Int
   data      Json
   ipAddress String?
   userAgent String?
   createdAt DateTime @default(now())
-  id        Int      @id @default(autoincrement())
-  formId    Int
   form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([formId])
@@ -165,13 +166,14 @@ model FormResponse {
 }
 
 model Redirect {
+  id          Int      @id @default(autoincrement())
   fromPath    String   @unique
   toPath      String
   statusCode  Int      @default(301)
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  id          Int      @id @default(autoincrement())
+  
 
   @@index([fromPath])
   @@map("redirects")
@@ -179,11 +181,11 @@ model Redirect {
 
 model PageTemplate {
   id           Int        @id @default(autoincrement())
+  authorId     Int
+  collectionId Int
   name         String
   description  String?
   htmlContent  String
-  collectionId Int
-  authorId     Int
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   author       User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -201,6 +203,12 @@ enum Role {
 }
 
 enum PageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CollectionItemStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
