@@ -14,19 +14,24 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
   try {
     const { id } = req.params;
 
-    // Try to find by ID first, then by slug
-    let page = await prisma.page.findUnique({
-      where: { id },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    let page = null;
+
+    // Try to find by ID first (only if id is a valid integer)
+    const pageId = parseInt(id, 10);
+    if (!isNaN(pageId)) {
+      page = await prisma.page.findUnique({
+        where: { id: pageId },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
         },
-      },
-    });
+      });
+    }
 
     // If not found by ID, try to find by slug
     if (!page) {
