@@ -190,7 +190,7 @@ export const updatePageTemplate = async (req: AuthRequest, res: Response, next: 
         }
 
         if (existingTemplate.authorId !== userIdInt) {
-            throw new ApiError('Forbidden', 403);
+            throw new ApiError('Unauthorized - You can only access your own page templates', 403);
         }
 
         const template = await prisma.pageTemplate.update({
@@ -249,7 +249,7 @@ export const deletePageTemplate = async (req: AuthRequest, res: Response, next: 
         }
 
         if (existingTemplate.authorId !== userIdInt) {
-            throw new ApiError('Forbidden', 403);
+            throw new ApiError('Unauthorized - You can only access your own page templates', 403);
         }
 
         await prisma.pageTemplate.delete({
@@ -316,7 +316,7 @@ export const renderTemplateWithItem = async (req: AuthRequest, res: Response, ne
         }
 
         if (item.collection.authorId !== userIdInt) {
-            throw new ApiError('Forbidden', 403);
+            throw new ApiError('Unauthorized - You can only access items from your own collections', 403);
         }
 
         // Verify template and item belong to same collection

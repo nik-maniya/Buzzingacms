@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ArrowLeft, Copy, Save, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Collection, Item, Field } from "./DynamicPages";
 import { CollectionItemsList } from "./CollectionItemsList";
 import { FieldsStructure } from "./FieldsStructure";
 import { CollectionSettings } from "./CollectionSettings";
-import { CodeEditor } from "./CodeEditor";
+import { CodeEditor, CodeEditorRef } from "./CodeEditor";
 import { toast } from "sonner";
 import { collectionFieldsAPI, pageTemplatesAPI } from "../services/api";
 
@@ -26,6 +27,40 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+  const codeEditorRef = useRef<CodeEditorRef>(null);
+
+  // HTML tags list
+  const htmlTags = [
+    { value: "<h1></h1>", label: "h1 - Heading 1" },
+    { value: "<h2></h2>", label: "h2 - Heading 2" },
+    { value: "<h3></h3>", label: "h3 - Heading 3" },
+    { value: "<h4></h4>", label: "h4 - Heading 4" },
+    { value: "<h5></h5>", label: "h5 - Heading 5" },
+    { value: "<h6></h6>", label: "h6 - Heading 6" },
+    { value: "<p></p>", label: "p - Paragraph" },
+    { value: "<div></div>", label: "div - Division" },
+    { value: "<span></span>", label: "span - Inline" },
+    { value: "<a href=\"\"></a>", label: "a - Link" },
+    { value: "<img src=\"\" alt=\"\" />", label: "img - Image" },
+    { value: "<ul></ul>", label: "ul - Unordered List" },
+    { value: "<ol></ol>", label: "ol - Ordered List" },
+    { value: "<li></li>", label: "li - List Item" },
+    { value: "<strong></strong>", label: "strong - Bold" },
+    { value: "<em></em>", label: "em - Italic" },
+    { value: "<br />", label: "br - Line Break" },
+    { value: "<hr />", label: "hr - Horizontal Rule" },
+    { value: "<button></button>", label: "button - Button" },
+    { value: "<input type=\"text\" />", label: "input - Input Field" },
+    { value: "<textarea></textarea>", label: "textarea - Text Area" },
+    { value: "<table></table>", label: "table - Table" },
+    { value: "<tr></tr>", label: "tr - Table Row" },
+    { value: "<td></td>", label: "td - Table Cell" },
+    { value: "<section></section>", label: "section - Section" },
+    { value: "<article></article>", label: "article - Article" },
+    { value: "<header></header>", label: "header - Header" },
+    { value: "<footer></footer>", label: "footer - Footer" },
+    { value: "<nav></nav>", label: "nav - Navigation" },
+  ];
 
   useEffect(() => {
     if (initialTab) {
@@ -174,6 +209,13 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     } catch {}
   };
 
+  const handleInsertHtmlTag = (tag: string) => {
+    if (codeEditorRef.current) {
+      codeEditorRef.current.insertText(tag);
+      toast.success("HTML tag inserted");
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-white overflow-y-auto">
       {/* Header */}
@@ -273,7 +315,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
                       <p className="text-neutral-500">Loading template...</p>
                     </div>
                   ) : (
-                    <CodeEditor value={templateHtml} onChange={setTemplateHtml} language="html" height={500} />
+                    <CodeEditor ref={codeEditorRef} value={templateHtml} onChange={setTemplateHtml} language="html" height={500} />
                   )}
                   <p className="text-sm text-neutral-500">
                     Use placeholders from the right panel inside your HTML. They will be replaced by item values when rendering.
@@ -321,6 +363,24 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
                       <code className="ml-1 rounded bg-neutral-100 px-1 py-0.5 text-neutral-700">{`{{title}}`}</code>
                       in the HTML.
                     </p>
+                  </div>
+                  
+                  {/* HTML Tags Dropdown */}
+                  <div className="space-y-2">
+                    <h3 className="text-neutral-900">HTML Tags</h3>
+                    <p className="text-sm text-neutral-500">Select a tag to insert into the editor.</p>
+                    <Select onValueChange={handleInsertHtmlTag}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select an HTML tag..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {htmlTags.map((tag) => (
+                          <SelectItem key={tag.value} value={tag.value}>
+                            {tag.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

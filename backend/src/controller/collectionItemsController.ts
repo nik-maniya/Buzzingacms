@@ -19,6 +19,14 @@ export const createCollectionItem = async (req: AuthRequest, res: Response, next
         if (!collection) {
             throw new ApiError('Collection not found', 404);
         }
+        // Verify collection belongs to user
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+        if (collection.authorId !== userIdInt) {
+            throw new ApiError('Unauthorized - You can only create items in your own collections', 403);
+        }
         // Normalize status to uppercase and default to DRAFT
         const normalizedStatus = status ? status.toUpperCase() : 'DRAFT';
         const validStatuses = ['DRAFT', 'PUBLISHED', 'ARCHIVED'];
@@ -54,10 +62,24 @@ export const getAllCollectionItems = async (req: AuthRequest, res: Response, nex
         if (isNaN(collectionIdInt)) {
             throw new ApiError('Invalid collection ID', 400);
         }
+        // Convert user ID to integer for query
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+        // Verify collection belongs to user
+        const collection = await prisma.collection.findUnique({
+            where: { id: collectionIdInt },
+        });
+        if (!collection) {
+            throw new ApiError('Collection not found', 404);
+        }
+        if (collection.authorId !== userIdInt) {
+            throw new ApiError('Unauthorized - You can only access items from your own collections', 403);
+        }
         const items = await prisma.collectionItem.findMany({
             where: {
                 collectionId: collectionIdInt,
-                collection: { authorId: req.user.id },
             },
             include: {
                 collection: true,
@@ -97,7 +119,7 @@ export const updateCollectionItem = async (req: AuthRequest, res: Response, next
             throw new ApiError('Invalid user ID', 400);
         }
         if (existing.collection.authorId !== userIdInt) {
-            throw new ApiError('Forbidden', 403);
+            throw new ApiError('Unauthorized - You can only update items from your own collections', 403);
         }
         
         // Merge incoming JSON data with existing data (do not replace)
@@ -154,8 +176,13 @@ export const getCollectionItemById = async (req: AuthRequest, res: Response, nex
         if (!item) {
             throw new ApiError('Collection item not found', 404);
         }
-        if (item.collection.authorId !== req.user.id) {
-            throw new ApiError('Forbidden', 403);
+        // Convert user ID to integer for comparison
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+        if (item.collection.authorId !== userIdInt) {
+            throw new ApiError('Unauthorized - You can only access items from your own collections', 403);
         }
         res.json({
             success: true,
@@ -183,8 +210,13 @@ export const deleteCollectionItem = async (req: AuthRequest, res: Response, next
         if (!item) {
             throw new ApiError('Collection item not found', 404);
         }
-        if (item.collection.authorId !== req.user.id) {
-            throw new ApiError('Forbidden', 403);
+        // Convert user ID to integer for comparison
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+        if (item.collection.authorId !== userIdInt) {
+            throw new ApiError('Unauthorized - You can only delete items from your own collections', 403);
         }
         await prisma.collectionItem.delete({
             where: { id: itemId },

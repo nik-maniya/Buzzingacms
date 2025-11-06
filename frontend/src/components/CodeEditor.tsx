@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useImperativeHandle, forwardRef } from "react";
 
 interface CodeEditorProps {
   value: string;
@@ -7,9 +7,33 @@ interface CodeEditorProps {
   height?: number | string;
 }
 
-export function CodeEditor({ value, onChange, language, height }: CodeEditorProps) {
+export interface CodeEditorRef {
+  insertText: (text: string) => void;
+}
+
+export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({ value, onChange, language, height }, ref) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isLight = language === "html";
+
+  useImperativeHandle(ref, () => ({
+    insertText: (text: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newValue = value.substring(0, start) + text + value.substring(end);
+      
+      onChange(newValue);
+      
+      // Set cursor position after inserted text
+      setTimeout(() => {
+        textarea.focus();
+        const newCursorPos = start + text.length;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+    },
+  }));
 
   return (
     <>
@@ -56,4 +80,6 @@ export function CodeEditor({ value, onChange, language, height }: CodeEditorProp
       </div>
     </>
   );
-}
+});
+
+CodeEditor.displayName = "CodeEditor";
