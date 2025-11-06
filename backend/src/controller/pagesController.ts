@@ -98,10 +98,19 @@ export const updatePage = async (req: AuthRequest, res: Response, next: NextFunc
         const { id } = req.params;
         const { title, slug, content, customCss, customJs, status, description, keywords, ogImage, isHomePage } = req.body;
 
-        // Try to find by ID first, then by slug
-        let existingPage = await prisma.page.findUnique({
-            where: { id },
-        });
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        // Try to find by ID first (parse as integer), then by slug
+        const pageId = parseInt(id, 10);
+        let existingPage = null;
+        
+        if (!isNaN(pageId)) {
+            existingPage = await prisma.page.findUnique({
+                where: { id: pageId },
+            });
+        }
 
         // If not found by ID, try to find by slug
         if (!existingPage && req.user) {
@@ -115,6 +124,10 @@ export const updatePage = async (req: AuthRequest, res: Response, next: NextFunc
 
         if (!existingPage) {
             throw new ApiError('Page not found', 404);
+        }
+
+        if (existingPage.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only update your own pages', 403);
         }
 
         // If slug is being changed, check if new slug exists
@@ -175,10 +188,19 @@ export const deletePage = async (req: AuthRequest, res: Response, next: NextFunc
     try {
         const { id } = req.params;
 
-        // Try to find by ID first, then by slug
-        let page = await prisma.page.findUnique({
-            where: { id },
-        });
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        // Try to find by ID first (parse as integer), then by slug
+        const pageId = parseInt(id, 10);
+        let page = null;
+        
+        if (!isNaN(pageId)) {
+            page = await prisma.page.findUnique({
+                where: { id: pageId },
+            });
+        }
 
         // If not found by ID, try to find by slug
         if (!page && req.user) {
@@ -192,6 +214,10 @@ export const deletePage = async (req: AuthRequest, res: Response, next: NextFunc
 
         if (!page) {
             throw new ApiError('Page not found', 404);
+        }
+
+        if (page.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only delete your own pages', 403);
         }
 
         // Delete using the actual page ID

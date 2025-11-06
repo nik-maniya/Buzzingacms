@@ -10,18 +10,27 @@ export const createCollectionField = async (req: AuthRequest, res: Response, nex
             throw new ApiError('User not authenticated', 401);
         }
         
-        // Verify collection exists
+        const collectionIdInt = typeof collectionId === 'string' ? parseInt(collectionId, 10) : collectionId;
+        if (isNaN(collectionIdInt)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
+        
+        // Verify collection exists and belongs to user
         const collection = await prisma.collection.findUnique({
-            where: { id: collectionId },
+            where: { id: collectionIdInt },
         });
         
         if (!collection) {
             throw new ApiError('Collection not found', 404);
         }
+
+        if (collection.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only add fields to your own collections', 403);
+        }
         
         const field = await prisma.field.create({
             data: {
-                collectionId,
+                collectionId: collectionIdInt,
                 authorId: req.user.id,
                 fieldType,
                 fieldLabel,
@@ -47,8 +56,27 @@ export const getAllCollectionFields = async (req: AuthRequest, res: Response, ne
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
+
+        const collectionIdInt = parseInt(collectionId, 10);
+        if (isNaN(collectionIdInt)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
+
+        // Verify collection exists and belongs to user
+        const collection = await prisma.collection.findUnique({
+            where: { id: collectionIdInt },
+        });
+
+        if (!collection) {
+            throw new ApiError('Collection not found', 404);
+        }
+
+        if (collection.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only access fields from your own collections', 403);
+        }
+
         const fields = await prisma.field.findMany({
-            where: { collectionId, authorId: req.user.id },
+            where: { collectionId: collectionIdInt, authorId: req.user.id },
         });
         res.json({
             success: true,
@@ -67,14 +95,23 @@ export const updateCollectionField = async (req: AuthRequest, res: Response, nex
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
+        const fieldId = parseInt(id, 10);
+        if (isNaN(fieldId)) {
+            throw new ApiError('Invalid field ID', 400);
+        }
         const existingField = await prisma.field.findUnique({
-            where: { id },
+            where: { id: fieldId },
         });
         if (!existingField) {
             throw new ApiError('Field not found', 404);
         }
+
+        if (existingField.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only update your own fields', 403);
+        }
+
         const field = await prisma.field.update({
-            where: { id },
+            where: { id: fieldId },
             data: {
                 ...(fieldType && { fieldType }),
                 ...(fieldLabel && { fieldLabel }),
@@ -101,12 +138,21 @@ export const getCollectionFieldById = async (req: AuthRequest, res: Response, ne
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
+        const fieldId = parseInt(id, 10);
+        if (isNaN(fieldId)) {
+            throw new ApiError('Invalid field ID', 400);
+        }
         const field = await prisma.field.findUnique({
-            where: { id },
+            where: { id: fieldId },
         });
         if (!field) {
             throw new ApiError('Field not found', 404);
         }
+
+        if (field.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only access your own fields', 403);
+        }
+
         res.json({
             success: true,
             data: field,
@@ -124,15 +170,25 @@ export const deleteCollectionField = async (req: AuthRequest, res: Response, nex
             throw new ApiError('User not authenticated', 401);
         }
 
+        const fieldId = parseInt(id, 10);
+        if (isNaN(fieldId)) {
+            throw new ApiError('Invalid field ID', 400);
+        }
+
         const existingField = await prisma.field.findUnique({
-            where: { id },
+            where: { id: fieldId },
         });
 
         if (!existingField) {
             throw new ApiError('Field not found', 404);
         }
+
+        if (existingField.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only delete your own fields', 403);
+        }
+
         await prisma.field.delete({
-            where: { id },
+            where: { id: fieldId },
         });
 
         res.json({

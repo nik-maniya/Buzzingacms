@@ -13,6 +13,7 @@ import formsRouter from './routes/forms.js';
 import authRouter from './routes/auth.js';
 import collectionFieldRouter from './routes/collectionField.js';
 import collectionItemRouter from './routes/collectionItem.js';
+import pageTemplateRouter from './routes/pageTemplate.js';
 
 // Load environment variables
 dotenv.config();
@@ -43,6 +44,7 @@ app.use('/api/menus', menusRouter);
 app.use('/api/forms', formsRouter);
 app.use('/api/collection-fields', collectionFieldRouter);
 app.use('/api/collection-items', collectionItemRouter);
+app.use('/api/page-templates', pageTemplateRouter);
 
 // Health check endpoint
 app.get('/api/health', (req: Request, res: Response) => {

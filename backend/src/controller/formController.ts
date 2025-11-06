@@ -39,9 +39,22 @@ export const updateForm = async (req: AuthRequest, res: Response, next: NextFunc
         const { id } = req.params;
         const { name, slug, description, fields, settings } = req.body;
 
-        const existingForm = await prisma.form.findUnique({ where: { id } });
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const formId = parseInt(id, 10);
+        if (isNaN(formId)) {
+            throw new ApiError('Invalid form ID', 400);
+        }
+
+        const existingForm = await prisma.form.findUnique({ where: { id: formId } });
         if (!existingForm) {
             throw new ApiError("Form not found", 404);
+        }
+
+        if (existingForm.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only update your own forms', 403);
         }
 
         // If slug is being changed, ensure uniqueness
@@ -53,7 +66,7 @@ export const updateForm = async (req: AuthRequest, res: Response, next: NextFunc
         }
 
         const form = await prisma.form.update({
-            where: { id },
+            where: { id: formId },
             data: {
                 ...(name && { name }),
                 ...(slug && { slug }),
@@ -78,16 +91,29 @@ export const deleteForm = async (req: AuthRequest, res: Response, next: NextFunc
     try {
         const { id } = req.params;
 
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const formId = parseInt(id, 10);
+        if (isNaN(formId)) {
+            throw new ApiError('Invalid form ID', 400);
+        }
+
         const existingForm = await prisma.form.findUnique({
-            where: { id },
+            where: { id: formId },
         });
 
         if (!existingForm) {
             throw new ApiError('Form not found', 404);
         }
 
+        if (existingForm.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only delete your own forms', 403);
+        }
+
         await prisma.form.delete({
-            where: { id },
+            where: { id: formId },
         });
 
         res.json({
@@ -139,8 +165,17 @@ export const getFormById = async (req: AuthRequest, res: Response, next: NextFun
     try {
         const { id } = req.params;
 
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const formId = parseInt(id, 10);
+        if (isNaN(formId)) {
+            throw new ApiError('Invalid form ID', 400);
+        }
+
         const form = await prisma.form.findUnique({
-            where: { id },
+            where: { id: formId },
             include: {
                 author: {
                     select: {
@@ -159,6 +194,10 @@ export const getFormById = async (req: AuthRequest, res: Response, next: NextFun
 
         if (!form) {
             throw new ApiError('Form not found', 404);
+        }
+
+        if (form.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only access your own forms', 403);
         }
 
         res.json({

@@ -93,8 +93,17 @@ export const getCollectionById = async (req: AuthRequest, res: Response, next: N
     try {
         const { id } = req.params;
 
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const collectionId = parseInt(id, 10);
+        if (isNaN(collectionId)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
+
         const collection = await prisma.collection.findUnique({
-            where: { id },
+            where: { id: collectionId },
             include: {
                 author: {
                     select: {
@@ -114,6 +123,10 @@ export const getCollectionById = async (req: AuthRequest, res: Response, next: N
             throw new ApiError('Collection not found', 404);
         }
 
+        if (collection.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only access your own collections', 403);
+        }
+
         res.json({
             success: true,
             data: collection,
@@ -128,12 +141,25 @@ export const updateCollection = async (req: AuthRequest, res: Response, next: Ne
         const { id } = req.params;
         const { name, slug, description } = req.body;
 
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const collectionId = parseInt(id, 10);
+        if (isNaN(collectionId)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
+
         const existingCollection = await prisma.collection.findUnique({
-            where: { id },
+            where: { id: collectionId },
         });
 
         if (!existingCollection) {
             throw new ApiError('Collection not found', 404);
+        }
+
+        if (existingCollection.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only update your own collections', 403);
         }
 
         // If slug is being changed, check if new slug exists
@@ -151,7 +177,7 @@ export const updateCollection = async (req: AuthRequest, res: Response, next: Ne
         }
 
         const collection = await prisma.collection.update({
-            where: { id },
+            where: { id: collectionId },
             data: {
                 ...(name && { name }),
                 ...(slug && { slug }),
@@ -173,16 +199,29 @@ export const deleteCollection = async (req: AuthRequest, res: Response, next: Ne
     try {
         const { id } = req.params;
 
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const collectionId = parseInt(id, 10);
+        if (isNaN(collectionId)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
+
         const existingCollection = await prisma.collection.findUnique({
-            where: { id },
+            where: { id: collectionId },
         });
 
         if (!existingCollection) {
             throw new ApiError('Collection not found', 404);
         }
 
+        if (existingCollection.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only delete your own collections', 403);
+        }
+
         await prisma.collection.delete({
-            where: { id },
+            where: { id: collectionId },
         });
 
         res.json({

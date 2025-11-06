@@ -71,12 +71,27 @@ export const createMenu = async (req: AuthRequest, res: Response, next: NextFunc
 export const getMenuById = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
+
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const menuId = parseInt(id, 10);
+        if (isNaN(menuId)) {
+            throw new ApiError('Invalid menu ID', 400);
+        }
+
         const menu = await prisma.menu.findUnique({
-            where: { id },
+            where: { id: menuId },
         });
         if (!menu) {
             throw new ApiError('Menu not found', 404);
         }
+
+        if (menu.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only access your own menus', 403);
+        }
+
         res.json({
             success: true,
             data: menu,
@@ -92,12 +107,25 @@ export const updateMenu = async (req: AuthRequest, res: Response, next: NextFunc
         const { id } = req.params;
         const { name, slug, location, items } = req.body;
 
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const menuId = parseInt(id, 10);
+        if (isNaN(menuId)) {
+            throw new ApiError('Invalid menu ID', 400);
+        }
+
         const existingMenu = await prisma.menu.findUnique({
-            where: { id },
+            where: { id: menuId },
         });
 
         if (!existingMenu) {
             throw new ApiError('Menu not found', 404);
+        }
+
+        if (existingMenu.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only update your own menus', 403);
         }
 
         // If slug is being changed, check if new slug exists for the same author
@@ -106,7 +134,7 @@ export const updateMenu = async (req: AuthRequest, res: Response, next: NextFunc
                 where: {
                     slug,
                     authorId: existingMenu.authorId,
-                    NOT: { id },
+                    NOT: { id: menuId },
                 },
             });
 
@@ -125,7 +153,7 @@ export const updateMenu = async (req: AuthRequest, res: Response, next: NextFunc
         }
 
         const menu = await prisma.menu.update({
-            where: { id },
+            where: { id: menuId },
             data: {
                 ...(name && { name }),
                 ...(slug && { slug }),
@@ -159,16 +187,29 @@ export const deleteMenu = async (req: AuthRequest, res: Response, next: NextFunc
     try {
         const { id } = req.params;
 
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const menuId = parseInt(id, 10);
+        if (isNaN(menuId)) {
+            throw new ApiError('Invalid menu ID', 400);
+        }
+
         const existingMenu = await prisma.menu.findUnique({
-            where: { id },
+            where: { id: menuId },
         });
 
         if (!existingMenu) {
             throw new ApiError('Menu not found', 404);
         }
 
+        if (existingMenu.authorId !== req.user.id) {
+            throw new ApiError('Unauthorized - You can only delete your own menus', 403);
+        }
+
         await prisma.menu.delete({
-            where: { id },
+            where: { id: menuId },
         });
 
         res.json({

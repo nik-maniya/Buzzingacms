@@ -9,15 +9,19 @@ export const createCollectionItem = async (req: AuthRequest, res: Response, next
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
+        const collectionIdInt = typeof collectionId === 'string' ? parseInt(collectionId, 10) : collectionId;
+        if (isNaN(collectionIdInt)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
         const collection = await prisma.collection.findUnique({
-            where: { id: collectionId },
+            where: { id: collectionIdInt },
         });
         if (!collection) {
             throw new ApiError('Collection not found', 404);
         }
         const item = await prisma.collectionItem.create({
             data: {
-                collectionId,
+                collectionId: collectionIdInt,
                 data,
                 status,
             },
@@ -41,9 +45,13 @@ export const getAllCollectionItems = async (req: AuthRequest, res: Response, nex
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
+        const collectionIdInt = parseInt(collectionId, 10);
+        if (isNaN(collectionIdInt)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
         const items = await prisma.collectionItem.findMany({
             where: {
-                collectionId,
+                collectionId: collectionIdInt,
                 collection: { authorId: req.user.id },
             },
             include: {
@@ -66,9 +74,13 @@ export const updateCollectionItem = async (req: AuthRequest, res: Response, next
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
+        const itemId = parseInt(id, 10);
+        if (isNaN(itemId)) {
+            throw new ApiError('Invalid item ID', 400);
+        }
         // Authorize: only allow update if the item's collection belongs to the logged-in user
         const existing = await prisma.collectionItem.findUnique({
-            where: { id },
+            where: { id: itemId },
             include: { collection: true },
         });
         if (!existing) {
@@ -78,7 +90,7 @@ export const updateCollectionItem = async (req: AuthRequest, res: Response, next
             throw new ApiError('Forbidden', 403);
         }
         const item = await prisma.collectionItem.update({
-            where: { id },
+            where: { id: itemId },
             data: { data, status },
         });
         res.json({
@@ -97,8 +109,12 @@ export const getCollectionItemById = async (req: AuthRequest, res: Response, nex
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
+        const itemId = parseInt(id, 10);
+        if (isNaN(itemId)) {
+            throw new ApiError('Invalid item ID', 400);
+        }
         const item = await prisma.collectionItem.findUnique({
-            where: { id },
+            where: { id: itemId },
             include: { collection: true },
         });
         if (!item) {
@@ -122,8 +138,12 @@ export const deleteCollectionItem = async (req: AuthRequest, res: Response, next
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
+        const itemId = parseInt(id, 10);
+        if (isNaN(itemId)) {
+            throw new ApiError('Invalid item ID', 400);
+        }
         const item = await prisma.collectionItem.findUnique({
-            where: { id },
+            where: { id: itemId },
             include: { collection: true },
         });
         if (!item) {
@@ -133,7 +153,7 @@ export const deleteCollectionItem = async (req: AuthRequest, res: Response, next
             throw new ApiError('Forbidden', 403);
         }
         await prisma.collectionItem.delete({
-            where: { id },
+            where: { id: itemId },
         });
         res.json({
             success: true,

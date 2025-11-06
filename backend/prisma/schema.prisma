@@ -8,24 +8,24 @@ datasource db {
 }
 
 model User {
-  id          String       @id @default(uuid())
-  email       String       @unique
-  password    String
-  name        String
-  role        Role         @default(VIEWER)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  collections Collection[]
-  forms       Form[]
-  menus       Menu[]
-  pages       Page[]
-  fields      Field[]
+  email         String         @unique
+  password      String
+  name          String
+  role          Role           @default(VIEWER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  id            Int            @id @default(autoincrement())
+  fields        Field[]
+  collections   Collection[]
+  forms         Form[]
+  menus         Menu[]
+  pageTemplates PageTemplate[]
+  pages         Page[]
 
   @@map("users")
 }
 
 model Page {
-  id          String     @id @default(uuid())
   title       String
   slug        String
   content     Json?
@@ -34,11 +34,12 @@ model Page {
   keywords    String[]
   ogImage     String?
   isHomePage  Boolean    @default(false)
-  authorId    String
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   customCss   String?
   customJs    String?
+  id          Int        @id @default(autoincrement())
+  authorId    Int
   author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@unique([authorId, slug])
@@ -49,16 +50,17 @@ model Page {
 }
 
 model Collection {
-  id          String           @id @default(uuid())
-  name        String
-  slug        String           
-  description String?
-  authorId    String
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  author      User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  items       CollectionItem[]
-  fields      Field[]
+  name          String
+  slug          String
+  description   String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  id            Int              @id @default(autoincrement())
+  authorId      Int
+  fields        Field[]
+  items         CollectionItem[]
+  author        User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  pageTemplates PageTemplate[]
 
   @@index([slug])
   @@index([authorId])
@@ -66,38 +68,36 @@ model Collection {
 }
 
 model CollectionItem {
-  id           String     @id @default(uuid())
-  collectionId String
   data         Json
   status       String     @default("draft")
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  id           Int        @id @default(autoincrement())
+  collectionId Int
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  
+
   @@index([collectionId])
   @@map("collection_items")
 }
 
 model Field {
-  id             String      @id @default(uuid())
-  collectionId   String
-  collection     Collection  @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  authorId    String
-  author      User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  fieldType      String
-  fieldLabel     String
-  placeholder    String?
-  defaultValue   String?
-  options        Json?
-  required       Boolean     @default(false)
-  order          Int?
-  
-  createdAt      DateTime    @default(now())
+  fieldType    String
+  fieldLabel   String
+  placeholder  String?
+  defaultValue String?
+  options      Json?
+  required     Boolean    @default(false)
+  order        Int?
+  createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  id           Int        @id @default(autoincrement())
+  collectionId Int
+  authorId     Int
+  author       User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 }
 
 model Media {
-  id           String   @id @default(uuid())
   filename     String
   originalName String
   mimeType     String
@@ -108,22 +108,23 @@ model Media {
   caption      String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
 
   @@index([mimeType])
   @@map("media")
 }
 
 model Menu {
-  id        String   @id @default(uuid())
   name      String
-  slug      String   
+  slug      String
   location  String?
   items     Json
-  authorId  String
-  header    Json?    // { html, css, js }
-  footer    Json?    // { html, css, js }
+  header    Json?
+  footer    Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  authorId  Int
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([slug])
@@ -132,15 +133,15 @@ model Menu {
 }
 
 model Form {
-  id          String         @id @default(uuid())
   name        String
-  slug        String         
+  slug        String
   description String?
   fields      Json
   settings    Json?
-  authorId    String
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+  id          Int            @id @default(autoincrement())
+  authorId    Int
   responses   FormResponse[]
   author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
@@ -150,12 +151,12 @@ model Form {
 }
 
 model FormResponse {
-  id        String   @id @default(uuid())
-  formId    String
   data      Json
   ipAddress String?
   userAgent String?
   createdAt DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  formId    Int
   form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([formId])
@@ -164,16 +165,33 @@ model FormResponse {
 }
 
 model Redirect {
-  id          String   @id @default(uuid())
   fromPath    String   @unique
   toPath      String
   statusCode  Int      @default(301)
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
 
   @@index([fromPath])
   @@map("redirects")
+}
+
+model PageTemplate {
+  id           Int        @id @default(autoincrement())
+  name         String
+  description  String?
+  htmlContent  String
+  collectionId Int
+  authorId     Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  author       User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([authorId])
+  @@map("page_templates")
 }
 
 enum Role {
