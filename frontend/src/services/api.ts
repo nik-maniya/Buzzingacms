@@ -152,6 +152,9 @@ export const pageTemplatesAPI = {
   delete: (id: string) => api.delete(`/page-templates/deletePageTemplate/${id}`),
   render: (templateId: string, itemId: string) =>
     api.get(`/page-templates/renderTemplate/${templateId}/${itemId}`),
+  // Render a single collection item using the latest template for the collection
+  renderItem: (collectionId: string | number, itemId: string | number) =>
+    api.get(`/page-templates/renderItem/${collectionId}/${itemId}`),
 };
 
 // Health check

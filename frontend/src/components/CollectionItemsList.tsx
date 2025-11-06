@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Edit2, Copy, Trash2, Lock, Rocket, MoreHorizontal } from "lucide-react";
+import { Plus, Search, Edit2, Copy, Trash2, Lock, Rocket, MoreHorizontal, Eye } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Collection, Item } from "./DynamicPages";
-import { collectionItemsAPI } from "../services/api";
+import { collectionItemsAPI, pageTemplatesAPI } from "../services/api";
 import { toast } from "sonner";
 
 interface CollectionItemsListProps {
@@ -24,6 +24,25 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
   const [loading, setLoading] = useState(true);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string>("");
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  const handlePreview = async (itemId: string | number) => {
+    try {
+      setIsPreviewLoading(true);
+      setIsPreviewOpen(true);
+      setPreviewHtml("");
+      const res = await pageTemplatesAPI.renderItem(collection.id, itemId);
+      const html = res?.data?.data?.htmlContent || "";
+      setPreviewHtml(html);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to load preview");
+      setPreviewHtml("");
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
 
   // Transform API item to frontend Item format
   const transformItem = (apiItem: any): Item => {
@@ -204,6 +223,15 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+                        onClick={() => handlePreview(item.id)}
+                        title="Preview"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
                         onClick={() => onEditItem(item)}
                       >
                         <Edit2 className="w-4 h-4" />
@@ -249,6 +277,36 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
           </Table>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-[900px] w-[calc(100%-2rem)] h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Preview</DialogTitle>
+            <DialogDescription>
+              Rendered with latest template for this collection
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto border rounded bg-white">
+            {isPreviewLoading ? (
+              <div className="p-6 text-neutral-500">Loading preview...</div>
+            ) : (
+              <div className="p-0">
+                <iframe
+                  title="preview"
+                  className="w-full h-[60vh] border-0"
+                  srcDoc={previewHtml}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsPreviewOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
