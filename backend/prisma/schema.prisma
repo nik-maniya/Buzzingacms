@@ -70,7 +70,7 @@ model CollectionItem {
    id           Int        @id @default(autoincrement())
    collectionId Int
   data         Json
-  status       CollectionItemStatus     @default("DRAFT")
+  status       CollectionItemStatus     @default(DRAFT)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   
@@ -183,8 +183,6 @@ model PageTemplate {
   id           Int        @id @default(autoincrement())
   authorId     Int
   collectionId Int
-  name         String
-  description  String?
   htmlContent  String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
