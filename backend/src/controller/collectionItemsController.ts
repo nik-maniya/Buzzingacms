@@ -19,11 +19,16 @@ export const createCollectionItem = async (req: AuthRequest, res: Response, next
         if (!collection) {
             throw new ApiError('Collection not found', 404);
         }
+        // Normalize status to uppercase and default to DRAFT
+        const normalizedStatus = status ? status.toUpperCase() : 'DRAFT';
+        const validStatuses = ['DRAFT', 'PUBLISHED', 'ARCHIVED'];
+        const finalStatus = validStatuses.includes(normalizedStatus) ? normalizedStatus : 'DRAFT';
+
         const item = await prisma.collectionItem.create({
             data: {
                 collectionId: collectionIdInt,
                 data,
-                status,
+                status: finalStatus as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED',
             },
             include: {
                 collection: true,
@@ -89,9 +94,20 @@ export const updateCollectionItem = async (req: AuthRequest, res: Response, next
         if (existing.collection.authorId !== req.user.id) {
             throw new ApiError('Forbidden', 403);
         }
+        
+        // Normalize status to uppercase if provided
+        const updateData: any = { data };
+        if (status) {
+            const normalizedStatus = status.toUpperCase();
+            const validStatuses = ['DRAFT', 'PUBLISHED', 'ARCHIVED'];
+            updateData.status = validStatuses.includes(normalizedStatus) 
+                ? normalizedStatus 
+                : existing.status;
+        }
+        
         const item = await prisma.collectionItem.update({
             where: { id: itemId },
-            data: { data, status },
+            data: updateData,
         });
         res.json({
             success: true,
