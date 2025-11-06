@@ -198,7 +198,7 @@ export const updatePageTemplate = async (req: AuthRequest, res: Response, next: 
             data: {
                 ...(name && { name }),
                 ...(description !== undefined && { description }),
-                ...(htmlContent && { htmlContent }),
+                ...(htmlContent !== undefined && { htmlContent }),
             },
             include: {
                 collection: {

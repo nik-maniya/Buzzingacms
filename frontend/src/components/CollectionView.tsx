@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Copy, Save, RotateCcw } from "lucide-react";
+import { ArrowLeft, Copy, Save, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Collection, Item, Field } from "./DynamicPages";
@@ -100,17 +100,25 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     try {
       setIsSavingTemplate(true);
       
+      // Validate that template has content
+      const trimmedHtml = templateHtml?.trim() || "";
+      if (!trimmedHtml) {
+        toast.error("Please add HTML content before saving the template.");
+        setIsSavingTemplate(false);
+        return;
+      }
+      
       if (templateId) {
         // Update existing template
         await pageTemplatesAPI.update(templateId, {
-          htmlContent: templateHtml || "",
+          htmlContent: trimmedHtml,
         });
         toast.success("Template updated successfully!");
       } else {
         // Create new template
         const res = await pageTemplatesAPI.create({
           collectionId: collection.id,
-          htmlContent: templateHtml || "",
+          htmlContent: trimmedHtml,
         });
         if (res.data.success && res.data.data) {
           setTemplateId(res.data.data.id.toString());
@@ -120,7 +128,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
       
       // Also save to localStorage as backup
       try {
-        localStorage.setItem(`collection-template-${collection.id}`, templateHtml || "");
+        localStorage.setItem(`collection-template-${collection.id}`, trimmedHtml);
       } catch {}
     } catch (e: any) {
       console.error("Error saving template:", e);
@@ -130,10 +138,33 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     }
   };
 
-  const handleResetTemplate = () => {
-    setTemplateHtml("");
-    setTemplateId(null);
-    toast.message("Template cleared.");
+  const handleResetTemplate = async () => {
+    try {
+      setIsSavingTemplate(true);
+      
+      // If template exists, delete it from database
+      if (templateId) {
+        await pageTemplatesAPI.delete(templateId);
+        toast.success("Template deleted successfully!");
+      }
+      
+      // Clear local state
+      setTemplateHtml("");
+      setTemplateId(null);
+      
+      // Also clear localStorage
+      try {
+        localStorage.removeItem(`collection-template-${collection.id}`);
+      } catch {}
+    } catch (e: any) {
+      console.error("Error deleting template:", e);
+      toast.error(e?.response?.data?.message || "Failed to delete template.");
+      // Still clear local state even if API call fails
+      setTemplateHtml("");
+      setTemplateId(null);
+    } finally {
+      setIsSavingTemplate(false);
+    }
   };
 
   const handleCopyPlaceholder = async (text: string) => {
@@ -219,9 +250,13 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
                   <div className="flex items-center justify-between">
                     <h3 className="text-neutral-900">HTML</h3>
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" onClick={handleResetTemplate}>
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Reset
+                      <Button 
+                        variant="outline" 
+                        onClick={handleResetTemplate}
+                        disabled={isSavingTemplate || isLoadingTemplate}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {isSavingTemplate ? "Deleting..." : "Delete"}
                       </Button>
                       <Button 
                         className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500" 
