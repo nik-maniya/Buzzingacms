@@ -139,6 +139,9 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
       if (item) {
         // Update existing item
         const response = await collectionItemsAPI.update(item.id, {
+          // Keep title/slug at top-level so backend merges them correctly
+          title,
+          slug,
           data: itemData,
           status,
         });
@@ -150,6 +153,9 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
         // Create new item
         const response = await collectionItemsAPI.create({
           collectionId: collection.id,
+          // Also send title/slug top-level for consistency
+          title,
+          slug,
           data: itemData,
           status,
         });
