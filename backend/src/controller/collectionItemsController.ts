@@ -91,14 +91,32 @@ export const updateCollectionItem = async (req: AuthRequest, res: Response, next
         if (!existing) {
             throw new ApiError('Collection item not found', 404);
         }
-        if (existing.collection.authorId !== req.user.id) {
+        // Ensure ID comparison uses numbers
+        const userIdInt = parseInt(req.user.id as any, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+        if (existing.collection.authorId !== userIdInt) {
             throw new ApiError('Forbidden', 403);
         }
         
-        // Normalize status to uppercase if provided
-        const updateData: any = { data };
+        // Merge incoming JSON data with existing data (do not replace)
+        const existingData = (existing.data || {}) as Record<string, any>;
+        const incomingData = (data || {}) as Record<string, any>;
+        const mergedData: Record<string, any> = { ...existingData, ...incomingData };
+        
+        // Merge top-level convenience fields into JSON
+        if (Object.prototype.hasOwnProperty.call(req.body, 'title')) {
+            mergedData.title = req.body.title;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body, 'slug')) {
+            mergedData.slug = req.body.slug;
+        }
+        
+        // Normalize status if provided
+        const updateData: any = { data: mergedData };
         if (status) {
-            const normalizedStatus = status.toUpperCase();
+            const normalizedStatus = String(status).toUpperCase();
             const validStatuses = ['DRAFT', 'PUBLISHED', 'ARCHIVED'];
             updateData.status = validStatuses.includes(normalizedStatus) 
                 ? normalizedStatus 
