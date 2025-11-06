@@ -7,6 +7,8 @@ import {
     getPageTemplateById,
     renderTemplateWithItem,
     updatePageTemplate,
+    renderCollectionItems,
+    renderCollectionItem,
 } from '../controller/pageTemplateController.js';
 
 const router = Router();
@@ -28,6 +30,12 @@ router.delete('/deletePageTemplate/:id', authenticate, deletePageTemplate);
 
 // GET /api/page-templates/:templateId/render/:itemId - Render template with item data
 router.get('/renderTemplate/:templateId/:itemId', authenticate, renderTemplateWithItem);
+
+// GET /api/page-templates/renderCollection/:collectionId - Render all items in a collection using latest template
+router.get('/renderCollection/:collectionId', authenticate, renderCollectionItems);
+
+// GET /api/page-templates/renderItem/:collectionId/:itemId - Render a single item using latest template
+router.get('/renderItem/:collectionId/:itemId', authenticate, renderCollectionItem);
 
 export default router;
 

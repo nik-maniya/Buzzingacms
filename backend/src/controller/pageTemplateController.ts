@@ -327,7 +327,7 @@ export const renderTemplateWithItem = async (req: AuthRequest, res: Response, ne
         // Get field labels for reference
         const fields = await prisma.field.findMany({
             where: { collectionId: template.collectionId },
-            select: { fieldLabel: true },
+            select: { id: true, fieldLabel: true },
         });
 
         // Render template: replace {{fieldLabel}} with actual values from item.data
@@ -336,9 +336,29 @@ export const renderTemplateWithItem = async (req: AuthRequest, res: Response, ne
 
         // Replace all field placeholders with actual values
         fields.forEach((field) => {
-            const placeholder = `{{${field.fieldLabel}}}`;
-            const value = fieldValues[field.fieldLabel] || '';
-            renderedHtml = renderedHtml.replace(new RegExp(placeholder, 'g'), String(value));
+            const label = field.fieldLabel;
+            const labelLower = label.toLowerCase().replace(/\s+/g, '_');
+
+            const placeholderExact = `{{${label}}}`;
+            const placeholderLower = `{{${labelLower}}}`;
+
+            const escapedExact = placeholderExact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const escapedLower = placeholderLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            let value: any = undefined;
+            if (fieldValues[label] !== undefined) value = fieldValues[label];
+            if (value === undefined && fieldValues[labelLower] !== undefined) value = fieldValues[labelLower];
+            if (value === undefined && fieldValues[String(field.id)] !== undefined) value = fieldValues[String(field.id)];
+            if (value === undefined) {
+                const matchKey = Object.keys(fieldValues).find(
+                    (k) => k.toLowerCase().replace(/\s+/g, '_') === labelLower
+                );
+                if (matchKey) value = fieldValues[matchKey];
+            }
+
+            const replaceWith = String(value ?? '');
+            renderedHtml = renderedHtml.replace(new RegExp(escapedExact, 'g'), replaceWith);
+            renderedHtml = renderedHtml.replace(new RegExp(escapedLower, 'g'), replaceWith);
         });
 
         res.json({
@@ -354,6 +374,195 @@ export const renderTemplateWithItem = async (req: AuthRequest, res: Response, ne
                     data: item.data,
                 },
                 renderedHtml,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const renderCollectionItems = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { collectionId } = req.params;
+
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        const collectionIdInt = parseInt(collectionId, 10);
+        if (isNaN(collectionIdInt)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
+
+        // Verify collection belongs to the user
+        const collection = await prisma.collection.findUnique({ where: { id: collectionIdInt } });
+        if (!collection) {
+            throw new ApiError('Collection not found', 404);
+        }
+        if (collection.authorId !== userIdInt) {
+            throw new ApiError('Unauthorized - You can only access your own collections', 403);
+        }
+
+        // Get latest template for this collection
+        const template = await prisma.pageTemplate.findFirst({
+            where: { collectionId: collectionIdInt, authorId: userIdInt },
+            orderBy: { updatedAt: 'desc' },
+        });
+        if (!template) {
+            return res.json({ success: true, data: [] });
+        }
+
+        // Get all items for this collection
+        const items = await prisma.collectionItem.findMany({
+            where: { collectionId: collectionIdInt },
+        });
+
+        // Get field labels for mapping
+        const fields = await prisma.field.findMany({
+            where: { collectionId: collectionIdInt },
+            select: { id: true, fieldLabel: true },
+        });
+
+        const results = items.map((item) => {
+            let renderedHtml = template.htmlContent;
+            const fieldValues = item.data as Record<string, any>;
+
+            // Replace placeholders using flexible matching (label, lower_snake_case, and numeric field id)
+            fields.forEach((field) => {
+                const label = field.fieldLabel;
+                const labelLower = label.toLowerCase().replace(/\s+/g, '_');
+
+                const placeholderExact = `{{${label}}}`;
+                const placeholderLower = `{{${labelLower}}}`;
+
+                const escapedExact = placeholderExact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const escapedLower = placeholderLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                // Possible keys in data: exact label, lower_snake_case, numeric field id as string, case-insensitive match
+                let value: any = undefined;
+                if (fieldValues[label] !== undefined) value = fieldValues[label];
+                if (value === undefined && fieldValues[labelLower] !== undefined) value = fieldValues[labelLower];
+                if (value === undefined && fieldValues[String((field as any).id)] !== undefined) value = fieldValues[String((field as any).id)];
+                if (value === undefined) {
+                    const matchKey = Object.keys(fieldValues).find(
+                        (k) => k.toLowerCase().replace(/\s+/g, '_') === labelLower
+                    );
+                    if (matchKey) value = fieldValues[matchKey];
+                }
+
+                const replaceWith = String(value ?? '');
+                // Replace both variants
+                renderedHtml = renderedHtml.replace(new RegExp(escapedExact, 'g'), replaceWith);
+                renderedHtml = renderedHtml.replace(new RegExp(escapedLower, 'g'), replaceWith);
+            });
+
+            return {
+                itemId: item.id,
+                data: item.data,
+                htmlContent: renderedHtml,
+            };
+        });
+
+        res.json({ success: true, data: results });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const renderCollectionItem = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { collectionId, itemId } = req.params;
+
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        const collectionIdInt = parseInt(collectionId, 10);
+        const itemIdInt = parseInt(itemId, 10);
+        if (isNaN(collectionIdInt)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
+        if (isNaN(itemIdInt)) {
+            throw new ApiError('Invalid item ID', 400);
+        }
+
+        // Verify collection belongs to the user
+        const collection = await prisma.collection.findUnique({ where: { id: collectionIdInt } });
+        if (!collection) {
+            throw new ApiError('Collection not found', 404);
+        }
+        if (collection.authorId !== userIdInt) {
+            throw new ApiError('Unauthorized - You can only access your own collections', 403);
+        }
+
+        // Get latest template for this collection
+        const template = await prisma.pageTemplate.findFirst({
+            where: { collectionId: collectionIdInt, authorId: userIdInt },
+            orderBy: { updatedAt: 'desc' },
+        });
+        if (!template) {
+            throw new ApiError('No template found for this collection', 404);
+        }
+
+        // Get the item
+        const item = await prisma.collectionItem.findUnique({
+            where: { id: itemIdInt },
+        });
+        if (!item || item.collectionId !== collectionIdInt) {
+            throw new ApiError('Collection item not found', 404);
+        }
+
+        // Get field labels for mapping
+        const fields = await prisma.field.findMany({
+            where: { collectionId: collectionIdInt },
+            select: { id: true, fieldLabel: true },
+        });
+
+        // Render
+        let renderedHtml = template.htmlContent;
+        const fieldValues = item.data as Record<string, any>;
+        fields.forEach((field) => {
+            const label = field.fieldLabel;
+            const labelLower = label.toLowerCase().replace(/\s+/g, '_');
+
+            const placeholderExact = `{{${label}}}`;
+            const placeholderLower = `{{${labelLower}}}`;
+
+            const escapedExact = placeholderExact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const escapedLower = placeholderLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            let value: any = undefined;
+            if (fieldValues[label] !== undefined) value = fieldValues[label];
+            if (value === undefined && fieldValues[labelLower] !== undefined) value = fieldValues[labelLower];
+            if (value === undefined && fieldValues[String((field as any).id)] !== undefined) value = fieldValues[String((field as any).id)];
+            if (value === undefined) {
+                const matchKey = Object.keys(fieldValues).find(
+                    (k) => k.toLowerCase().replace(/\s+/g, '_') === labelLower
+                );
+                if (matchKey) value = fieldValues[matchKey];
+            }
+
+            const replaceWith = String(value ?? '');
+            renderedHtml = renderedHtml.replace(new RegExp(escapedExact, 'g'), replaceWith);
+            renderedHtml = renderedHtml.replace(new RegExp(escapedLower, 'g'), replaceWith);
+        });
+
+        res.json({
+            success: true,
+            data: {
+                itemId: item.id,
+                data: item.data,
+                htmlContent: renderedHtml,
             },
         });
     } catch (error) {
