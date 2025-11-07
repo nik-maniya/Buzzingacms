@@ -11,6 +11,7 @@ import { Collection, Item, Field } from "./DynamicPages";
 import { collectionFieldsAPI, collectionItemsAPI } from "../services/api";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 interface ItemEditorProps {
   collection: Collection;
@@ -238,15 +239,15 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as "DRAFT" | "PUBLISHED" | "ARCHIVED")}
-              className="border border-neutral-200 rounded-md px-3 py-1.5 text-sm"
-            >
-              <option value="DRAFT">Draft</option>
-              <option value="PUBLISHED">Published</option>
-              <option value="ARCHIVED">Archived</option>
-            </select>
+          <Select value={status} onValueChange={(value: "DRAFT" | "PUBLISHED") => setStatus(value)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="PUBLISHED">Published</SelectItem>
+              </SelectContent>
+            </Select>
             <Button
               onClick={handleSave}
               className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500"

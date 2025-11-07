@@ -9,6 +9,7 @@ import { CodeEditor } from "./CodeEditor";
 import { MetadataPanel } from "./MetadataPanel";
 import { WysiwygEditor } from "./WysiwygEditor";
 import { PagePreview } from "./PagePreview";
+import { toast } from "sonner";
 
 interface PageEditorProps {
   pageId: string; // Can be ID, slug, or "new"
@@ -101,9 +102,10 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to create page");
+      toast.success(isNew ? "Page created successfully" : "Page updated successfully");
       onBack();
-    } catch (e) {
-      // no-op; could show a toast if available
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save page");
     }
   };
 
@@ -214,6 +216,15 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            <Select value={status} onValueChange={(value: "DRAFT" | "PUBLISHED") => setStatus(value)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="PUBLISHED">Published</SelectItem>
+              </SelectContent>
+            </Select>
             <Button 
               size="sm"
               onClick={handleSave}

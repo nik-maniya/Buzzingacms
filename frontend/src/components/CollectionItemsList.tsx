@@ -143,7 +143,7 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="DRAFT">Draft</SelectItem>
                 <SelectItem value="PUBLISHED">Published</SelectItem>
-                <SelectItem value="ARCHIVED">Archived</SelectItem>
+                {/*   */}
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
@@ -222,11 +222,11 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+                        className="h-8 w-24 p-0 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
                         onClick={() => handlePreview(item.id)}
                         title="Preview"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-4 h-4" />Preview
                       </Button>
                       <Button
                         variant="ghost"
