@@ -18,11 +18,28 @@ interface FieldsStructureProps {
 
 // Convert Field (Collection) to FormField with placeholder and defaultValue
 const fieldToFormField = (field: Field, apiFieldData?: any): FormField => {
-  // Parse defaultValue to get options or plain value
+  // Get options from options field, fallback to defaultValue for backward compatibility
   let options: string[] = field.options || [];
   let defaultValue = "";
   
-  if (apiFieldData?.defaultValue) {
+  // First try to get options from the options field
+  if (apiFieldData?.options) {
+    if (Array.isArray(apiFieldData.options)) {
+      options = apiFieldData.options;
+    } else if (typeof apiFieldData.options === 'string') {
+      try {
+        const parsed = JSON.parse(apiFieldData.options);
+        if (Array.isArray(parsed)) {
+          options = parsed;
+        }
+      } catch (e) {
+        // Not valid JSON
+      }
+    }
+  }
+  
+  // If no options found, check defaultValue for backward compatibility
+  if (options.length === 0 && apiFieldData?.defaultValue) {
     try {
       const parsed = JSON.parse(apiFieldData.defaultValue);
       if (Array.isArray(parsed)) {
@@ -33,6 +50,8 @@ const fieldToFormField = (field: Field, apiFieldData?: any): FormField => {
     } catch (e) {
       defaultValue = apiFieldData.defaultValue;
     }
+  } else if (apiFieldData?.defaultValue) {
+    defaultValue = apiFieldData.defaultValue;
   }
 
   // Map collection field types to FormField types
@@ -128,10 +147,28 @@ export function FieldsStructure({ collection, onFieldsChange }: FieldsStructureP
             // Store full API field data
             dataMap.set(apiField.id, apiField);
 
-            // Parse options from defaultValue if it's JSON
+            // Get options from options field, fallback to defaultValue for backward compatibility
             let options: string[] = [];
             let defaultValue = "";
-            if (apiField.defaultValue) {
+            
+            // First try to get options from the options field
+            if (apiField.options) {
+              if (Array.isArray(apiField.options)) {
+                options = apiField.options;
+              } else if (typeof apiField.options === 'string') {
+                try {
+                  const parsed = JSON.parse(apiField.options);
+                  if (Array.isArray(parsed)) {
+                    options = parsed;
+                  }
+                } catch (e) {
+                  // Not valid JSON
+                }
+              }
+            }
+            
+            // If no options found, check defaultValue for backward compatibility
+            if (options.length === 0 && apiField.defaultValue) {
               try {
                 const parsed = JSON.parse(apiField.defaultValue);
                 if (Array.isArray(parsed)) {
@@ -143,6 +180,8 @@ export function FieldsStructure({ collection, onFieldsChange }: FieldsStructureP
                 // Not JSON, treat as plain string
                 defaultValue = apiField.defaultValue;
               }
+            } else if (apiField.defaultValue) {
+              defaultValue = apiField.defaultValue;
             }
 
             return {
@@ -185,9 +224,7 @@ export function FieldsStructure({ collection, onFieldsChange }: FieldsStructureP
 
       // Prepare data for API (backend format)
       const options = formField.options || [];
-      const defaultValue = options.length > 0 
-        ? JSON.stringify(options) 
-        : formField.defaultValue || null;
+      const needsOptions = formField.type === "dropdown" || formField.type === "radio" || formField.type === "checkbox";
 
       if (editingField && editingField.id) {
         // Update existing field - preserve existing order and type
@@ -197,21 +234,46 @@ export function FieldsStructure({ collection, onFieldsChange }: FieldsStructureP
         // Get the collection field, preserving original type if it's date or tags
         const collectionField = formFieldToField(formField, originalType);
         
-        const apiData = {
+        // For dropdown, radio, and checkbox, send options separately
+        // For other fields, use defaultValue
+        const apiData: any = {
           collectionId: collection.id,
           fieldType: collectionField.type,
           fieldLabel: collectionField.name,
           placeholder: formField.placeholder || null,
-          defaultValue: defaultValue,
           required: collectionField.required || false,
           order: existingFieldData?.order ?? fields.length, // Preserve existing order
         };
+
+        if (needsOptions) {
+          // Send options for dropdown, radio, checkbox
+          apiData.options = options.length > 0 ? options : null;
+          apiData.defaultValue = formField.defaultValue || null;
+        } else {
+          // For other field types, use defaultValue
+          apiData.defaultValue = formField.defaultValue || null;
+          apiData.options = null;
+        }
         const response = await collectionFieldsAPI.update(editingField.id, apiData);
         if (response.data.success) {
           const updatedField = response.data.data;
-          // Parse options from defaultValue
+          // Get options from options field, fallback to defaultValue for backward compatibility
           let options: string[] = [];
-          if (updatedField.defaultValue) {
+          if (updatedField.options) {
+            if (Array.isArray(updatedField.options)) {
+              options = updatedField.options;
+            } else if (typeof updatedField.options === 'string') {
+              try {
+                const parsed = JSON.parse(updatedField.options);
+                if (Array.isArray(parsed)) {
+                  options = parsed;
+                }
+              } catch (e) {
+                // Not valid JSON
+              }
+            }
+          } else if (updatedField.defaultValue) {
+            // Backward compatibility: check defaultValue
             try {
               const parsed = JSON.parse(updatedField.defaultValue);
               if (Array.isArray(parsed)) {
@@ -240,21 +302,47 @@ export function FieldsStructure({ collection, onFieldsChange }: FieldsStructureP
       } else {
         // Create new field
         const collectionField = formFieldToField(formField);
-        const apiData = {
+        const needsOptions = formField.type === "dropdown" || formField.type === "radio" || formField.type === "checkbox";
+        
+        const apiData: any = {
           collectionId: collection.id,
           fieldType: collectionField.type,
           fieldLabel: collectionField.name,
           placeholder: formField.placeholder || null,
-          defaultValue: defaultValue,
           required: collectionField.required || false,
           order: fields.length, // Set order based on current fields count
         };
+
+        if (needsOptions) {
+          // Send options for dropdown, radio, checkbox
+          apiData.options = options.length > 0 ? options : null;
+          apiData.defaultValue = formField.defaultValue || null;
+        } else {
+          // For other field types, use defaultValue
+          apiData.defaultValue = formField.defaultValue || null;
+          apiData.options = null;
+        }
+
         const response = await collectionFieldsAPI.create(apiData);
         if (response.data.success) {
           const newField = response.data.data;
-          // Parse options from defaultValue
+          // Get options from options field, fallback to defaultValue for backward compatibility
           let options: string[] = [];
-          if (newField.defaultValue) {
+          if (newField.options) {
+            if (Array.isArray(newField.options)) {
+              options = newField.options;
+            } else if (typeof newField.options === 'string') {
+              try {
+                const parsed = JSON.parse(newField.options);
+                if (Array.isArray(parsed)) {
+                  options = parsed;
+                }
+              } catch (e) {
+                // Not valid JSON
+              }
+            }
+          } else if (newField.defaultValue) {
+            // Backward compatibility: check defaultValue
             try {
               const parsed = JSON.parse(newField.defaultValue);
               if (Array.isArray(parsed)) {

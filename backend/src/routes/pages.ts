@@ -2,7 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
-import { createPage, deletePage, getAllPages, updatePage } from '../controller/pagesController.js';
+import { createPage, deletePage, getAllPages, getPageById, updatePage } from '../controller/pagesController.js';
 
 const router = Router();
 
@@ -10,60 +10,7 @@ const router = Router();
 router.get('/', authenticate, getAllPages) 
 
 // GET /api/pages/:id - Get single page (supports both ID and slug)
-router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const { id } = req.params;
-
-    let page = null;
-
-    // Try to find by ID first (only if id is a valid integer)
-    const pageId = parseInt(id, 10);
-    if (!isNaN(pageId)) {
-      page = await prisma.page.findUnique({
-        where: { id: pageId },
-        include: {
-          author: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-      });
-    }
-
-    // If not found by ID, try to find by slug
-    if (!page) {
-      page = await prisma.page.findFirst({
-        where: { 
-          slug: id,
-          authorId: req.user?.id,
-        },
-        include: {
-          author: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-      });
-    }
-
-    if (!page) {
-      throw new ApiError('Page not found', 404);
-    }
-
-    res.json({
-      success: true,
-      data: page,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+router.get('/:id', authenticate, getPageById)
 
 // POST /api/pages - Create new page
 router.post('/', authenticate, createPage)

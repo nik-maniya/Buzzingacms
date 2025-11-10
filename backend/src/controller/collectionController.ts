@@ -232,3 +232,112 @@ export const deleteCollection = async (req: AuthRequest, res: Response, next: Ne
         next(error);
     }
 }
+
+// Get all collections with their published items for page rendering
+export const getCollectionsWithItems = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        // Get first 3 collections for the user with their published items
+        const collections = await prisma.collection.findMany({
+            where: {
+                authorId: userIdInt,
+            },
+            include: {
+                items: {
+                    where: {
+                        status: 'PUBLISHED',
+                    },
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                },
+                fields: {
+                    orderBy: {
+                        order: 'asc',
+                    },
+                },
+            },
+            orderBy: {
+                updatedAt: 'desc',
+            },
+            take: 3, // Limit to first 3 collections
+        });
+
+        res.json({
+            success: true,
+            data: collections,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Get collection items by collection slug (for dynamic pages like blog)
+export const getCollectionItemsBySlug = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { slug } = req.params;
+
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        // Find collection by slug
+        const collection = await prisma.collection.findFirst({
+            where: {
+                slug: slug,
+                authorId: userIdInt,
+            },
+            include: {
+                fields: {
+                    orderBy: {
+                        order: 'asc',
+                    },
+                },
+            },
+        });
+
+        if (!collection) {
+            throw new ApiError('Collection not found', 404);
+        }
+
+        // Get published items for this collection
+        const items = await prisma.collectionItem.findMany({
+            where: {
+                collectionId: collection.id,
+                status: 'PUBLISHED',
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+
+        res.json({
+            success: true,
+            data: {
+                collection: {
+                    id: collection.id,
+                    name: collection.name,
+                    slug: collection.slug,
+                    description: collection.description,
+                },
+                items: items,
+                fields: collection.fields,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+}

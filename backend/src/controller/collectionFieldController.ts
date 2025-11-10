@@ -5,7 +5,7 @@ import { ApiError } from '../middleware/errorHandler.js';
 
 export const createCollectionField = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        const { collectionId, fieldType, fieldLabel, placeholder, defaultValue, required, order } = req.body;
+        const { collectionId, fieldType, fieldLabel, placeholder, defaultValue, required, order, options } = req.body;
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
@@ -24,20 +24,44 @@ export const createCollectionField = async (req: AuthRequest, res: Response, nex
             throw new ApiError('Collection not found', 404);
         }
 
-        if (collection.authorId !== req.user.id) {
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        if (collection.authorId !== userIdInt) {
             throw new ApiError('Unauthorized - You can only add fields to your own collections', 403);
+        }
+        
+        // Only store options for dropdown, radio, and checkbox field types
+        let optionsData: any = undefined;
+        if (options && (fieldType === 'dropdown' || fieldType === 'radio' || fieldType === 'checkbox')) {
+            // Ensure options is an array
+            if (Array.isArray(options)) {
+                optionsData = options;
+            } else if (typeof options === 'string') {
+                // Try to parse if it's a JSON string
+                try {
+                    const parsed = JSON.parse(options);
+                    optionsData = Array.isArray(parsed) ? parsed : undefined;
+                } catch {
+                    // If not valid JSON, treat as comma-separated values
+                    optionsData = options.split(',').map((opt: string) => opt.trim()).filter((opt: string) => opt.length > 0);
+                }
+            }
         }
         
         const field = await prisma.field.create({
             data: {
                 collectionId: collectionIdInt,
-                authorId: req.user.id,
+                authorId: userIdInt,
                 fieldType,
                 fieldLabel,
                 placeholder,
                 defaultValue,
                 required: required || false,
                 order: order ?? 0,
+                ...(optionsData !== undefined && { options: optionsData }),
             },
         });
         res.json({
@@ -71,12 +95,17 @@ export const getAllCollectionFields = async (req: AuthRequest, res: Response, ne
             throw new ApiError('Collection not found', 404);
         }
 
-        if (collection.authorId !== req.user.id) {
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        if (collection.authorId !== userIdInt) {
             throw new ApiError('Unauthorized - You can only access fields from your own collections', 403);
         }
 
         const fields = await prisma.field.findMany({
-            where: { collectionId: collectionIdInt, authorId: req.user.id },
+            where: { collectionId: collectionIdInt, authorId: userIdInt },
         });
         res.json({
             success: true,
@@ -91,7 +120,7 @@ export const getAllCollectionFields = async (req: AuthRequest, res: Response, ne
 export const updateCollectionField = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const { fieldType, fieldLabel, placeholder, defaultValue, required, order } = req.body;
+        const { fieldType, fieldLabel, placeholder, defaultValue, required, order, options } = req.body;
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
@@ -106,8 +135,39 @@ export const updateCollectionField = async (req: AuthRequest, res: Response, nex
             throw new ApiError('Field not found', 404);
         }
 
-        if (existingField.authorId !== req.user.id) {
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        if (existingField.authorId !== userIdInt) {
             throw new ApiError('Unauthorized - You can only update your own fields', 403);
+        }
+
+        // Handle options for dropdown, radio, and checkbox field types
+        let optionsData: any = undefined;
+        if (options !== undefined) {
+            const currentFieldType = fieldType || existingField.fieldType;
+            if (currentFieldType === 'dropdown' || currentFieldType === 'radio' || currentFieldType === 'checkbox') {
+                // Ensure options is an array
+                if (Array.isArray(options)) {
+                    optionsData = options;
+                } else if (typeof options === 'string') {
+                    // Try to parse if it's a JSON string
+                    try {
+                        const parsed = JSON.parse(options);
+                        optionsData = Array.isArray(parsed) ? parsed : null;
+                    } catch {
+                        // If not valid JSON, treat as comma-separated values
+                        optionsData = options.split(',').map((opt: string) => opt.trim()).filter((opt: string) => opt.length > 0);
+                    }
+                } else if (options === null) {
+                    optionsData = null;
+                }
+            } else {
+                // For other field types, set options to null
+                optionsData = null;
+            }
         }
 
         const field = await prisma.field.update({
@@ -115,10 +175,11 @@ export const updateCollectionField = async (req: AuthRequest, res: Response, nex
             data: {
                 ...(fieldType && { fieldType }),
                 ...(fieldLabel && { fieldLabel }),
-                ...(placeholder && { placeholder }),
-                ...(defaultValue && { defaultValue }),
-                ...(required && { required }),
-                ...(order && { order }),
+                ...(placeholder !== undefined && { placeholder }),
+                ...(defaultValue !== undefined && { defaultValue }),
+                ...(required !== undefined && { required }),
+                ...(order !== undefined && { order }),
+                ...(optionsData !== undefined && { options: optionsData }),
             },
         });
         res.json({
@@ -149,7 +210,12 @@ export const getCollectionFieldById = async (req: AuthRequest, res: Response, ne
             throw new ApiError('Field not found', 404);
         }
 
-        if (field.authorId !== req.user.id) {
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        if (field.authorId !== userIdInt) {
             throw new ApiError('Unauthorized - You can only access your own fields', 403);
         }
 
@@ -300,12 +366,17 @@ export const getAllFieldName = async (req: AuthRequest, res: Response, next: Nex
             throw new ApiError('Collection not found', 404);
         }
 
-        if (collection.authorId !== req.user.id) {
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        if (collection.authorId !== userIdInt) {
             throw new ApiError('Unauthorized - You can only access fields from your own collections', 403);
         }
 
         const fields = await prisma.field.findMany({
-            where: { collectionId: collectionIdInt, authorId: req.user.id },
+            where: { collectionId: collectionIdInt, authorId: userIdInt },
             select: {
                 id: true,
                 fieldLabel: true,

@@ -2,12 +2,18 @@ import { Router, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
-import { createCollection, deleteCollection, getAllCollections, getCollectionById, updateCollection } from '../controller/collectionController.js';
+import { createCollection, deleteCollection, getAllCollections, getCollectionById, updateCollection, getCollectionsWithItems, getCollectionItemsBySlug } from '../controller/collectionController.js';
 
 const router = Router();
 
 // GET /api/collections - Get all collections
 router.get('/getAll', authenticate, getAllCollections)
+
+// GET /api/collections/with-items - Get all collections with published items
+router.get('/with-items', authenticate, getCollectionsWithItems)
+
+// GET /api/collections/items/:slug - Get collection items by collection slug (for dynamic pages)
+router.get('/items/:slug', authenticate, getCollectionItemsBySlug)
 
 // GET /api/collections/:id - Get single collection
 router.get('/getCollectionById/:id', authenticate, getCollectionById)

@@ -37,9 +37,27 @@ const transformCollection = (apiCollection: any): Collection => {
   let fields: Field[] = [];
   if (apiCollection.fields && Array.isArray(apiCollection.fields)) {
     fields = apiCollection.fields.map((field: any) => {
-      // Parse options from defaultValue if it's JSON
+      // Get options from options field, fallback to defaultValue for backward compatibility
       let options: string[] = [];
-      if (field.defaultValue) {
+      
+      // First try to get options from the options field
+      if (field.options) {
+        if (Array.isArray(field.options)) {
+          options = field.options;
+        } else if (typeof field.options === 'string') {
+          try {
+            const parsed = JSON.parse(field.options);
+            if (Array.isArray(parsed)) {
+              options = parsed;
+            }
+          } catch (e) {
+            // Not valid JSON
+          }
+        }
+      }
+      
+      // If no options found, check defaultValue for backward compatibility
+      if (options.length === 0 && field.defaultValue) {
         try {
           const parsed = JSON.parse(field.defaultValue);
           if (Array.isArray(parsed)) {

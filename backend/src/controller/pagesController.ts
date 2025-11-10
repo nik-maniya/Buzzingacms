@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { log } from 'console';
 
 export const createPage = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
@@ -15,7 +16,7 @@ export const createPage = async (req: AuthRequest, res: Response, next: NextFunc
         const existingPage = await prisma.page.findFirst({
             where: { slug, authorId: req.user.id },
         });
-        
+
         if (existingPage) {
             throw new ApiError('You already have a page with this slug', 400);
         }
@@ -102,20 +103,18 @@ export const updatePage = async (req: AuthRequest, res: Response, next: NextFunc
             throw new ApiError('User not authenticated', 401);
         }
 
-        // Try to find by ID first (parse as integer), then by slug
         const pageId = parseInt(id, 10);
         let existingPage = null;
-        
+
         if (!isNaN(pageId)) {
             existingPage = await prisma.page.findUnique({
                 where: { id: pageId },
             });
         }
 
-        // If not found by ID, try to find by slug
         if (!existingPage && req.user) {
             existingPage = await prisma.page.findFirst({
-                where: { 
+                where: {
                     slug: id,
                     authorId: req.user.id,
                 },
@@ -135,13 +134,12 @@ export const updatePage = async (req: AuthRequest, res: Response, next: NextFunc
             const existingPage = await prisma.page.findFirst({
                 where: { slug, authorId: req.user.id },
             });
-            
+
             if (existingPage) {
                 throw new ApiError('You already have a page with this slug', 400);
             }
         }
 
-        // If setting this page as home, unset others for this user
         if (req.user && isHomePage === true) {
             await prisma.page.updateMany({
                 where: { authorId: req.user.id, id: { not: existingPage.id } } as any,
@@ -192,20 +190,18 @@ export const deletePage = async (req: AuthRequest, res: Response, next: NextFunc
             throw new ApiError('User not authenticated', 401);
         }
 
-        // Try to find by ID first (parse as integer), then by slug
         const pageId = parseInt(id, 10);
         let page = null;
-        
+
         if (!isNaN(pageId)) {
             page = await prisma.page.findUnique({
                 where: { id: pageId },
             });
         }
 
-        // If not found by ID, try to find by slug
         if (!page && req.user) {
             page = await prisma.page.findFirst({
-                where: { 
+                where: {
                     slug: id,
                     authorId: req.user.id,
                 },
@@ -233,3 +229,70 @@ export const deletePage = async (req: AuthRequest, res: Response, next: NextFunc
         next(error);
     }
 };
+
+export const getPageById = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        if (!req.user) {
+            throw new ApiError('User not authenticated', 401);
+        }
+
+        const userIdInt = parseInt(req.user.id, 10);
+        if (isNaN(userIdInt)) {
+            throw new ApiError('Invalid user ID', 400);
+        }
+
+        let page = null;
+
+        const pageId = parseInt(id, 10);
+        if (!isNaN(pageId)) {
+            page = await prisma.page.findUnique({
+                where: {
+                    id: pageId,
+                },
+                include: {
+                    author: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                },
+            });
+        }
+
+        if (!page) {
+            page = await prisma.page.findFirst({
+                where: {
+                    slug: id,
+                    authorId: userIdInt,
+                },
+                include: {
+                    author: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                },
+            });
+        }
+
+        if (!page) {
+            throw new ApiError('Page not found', 404);
+        }
+
+        if (page.authorId !== userIdInt) {
+            throw new ApiError('Unauthorized - You can only access your own pages', 403);
+        }
+
+        res.json({
+            success: true,
+            data: page,
+        });
+    } catch (error) {
+        next(error);
+    }
+}

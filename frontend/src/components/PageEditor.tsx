@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ArrowLeft, Eye, ExternalLink } from "lucide-react";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -29,6 +29,53 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
   const [status, setStatus] = useState<"DRAFT" | "PUBLISHED">("DRAFT");
   const [previewHeaderHtml, setPreviewHeaderHtml] = useState<string>("");
   const [previewFooterHtml, setPreviewFooterHtml] = useState<string>("");
+  const [collections, setCollections] = useState<any[]>([]);
+
+  // Load first 3 collections with items and their templates
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    // API returns first 3 collections (most recently updated)
+    fetch(`${apiBase}/api/collections/with-items`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (r) => {
+        const res = await r.json();
+        if (r.ok && res?.data) {
+          const collectionsData = Array.isArray(res.data) ? res.data : [];
+          
+          // Fetch templates for each collection
+          const collectionsWithTemplates = await Promise.all(
+            collectionsData.map(async (collection: any) => {
+              try {
+                const templateRes = await fetch(
+                  `${apiBase}/api/page-templates/getAllPageTemplates/${collection.id}`,
+                  { headers: { Authorization: `Bearer ${token}` } }
+                );
+                const templateData = await templateRes.json();
+                if (templateData.success && templateData.data && templateData.data.length > 0) {
+                  // Get the latest template (first one, as they're ordered by updatedAt desc)
+                  collection.template = templateData.data[0].htmlContent || '';
+                } else {
+                  collection.template = '';
+                }
+              } catch {
+                collection.template = '';
+              }
+              return collection;
+            })
+          );
+          
+          setCollections(collectionsWithTemplates);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Load page data if editing existing page
   useEffect(() => {
@@ -164,19 +211,238 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     mobile: "375px",
   };
 
+  // Function to replace field placeholders in item template
+  const replaceFieldPlaceholders = (template: string, itemData: any, fields: any[]): string => {
+    let processed = template;
+    
+    // First, try to match fields by their fieldLabel
+    fields.forEach((field: any) => {
+      const fieldLabel = field.fieldLabel || '';
+      const possibleKeys = [
+        fieldLabel,
+        fieldLabel.toLowerCase().replace(/\s+/g, '_'),
+        fieldLabel.toLowerCase().replace(/\s+/g, '-'),
+        fieldLabel.toLowerCase(),
+        String(field.id)
+      ];
+      
+      let fieldValue = null;
+      for (const key of possibleKeys) {
+        if (itemData[key] !== undefined && itemData[key] !== null && itemData[key] !== '') {
+          fieldValue = itemData[key];
+          break;
+        }
+      }
+      
+      if (fieldValue !== null) {
+        // Replace {{fieldLabel}} and variations (case-insensitive)
+        const placeholderVariations = [
+          fieldLabel,
+          fieldLabel.toLowerCase().replace(/\s+/g, '_'),
+          fieldLabel.toLowerCase().replace(/\s+/g, '-'),
+          fieldLabel.toLowerCase(),
+        ];
+        
+        placeholderVariations.forEach(placeholder => {
+          const escaped = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`\\{\\{${escaped}\\}\\}`, 'gi');
+          processed = processed.replace(regex, String(fieldValue));
+        });
+      }
+    });
+    
+    // Then replace any remaining placeholders from itemData directly
+    Object.keys(itemData).forEach((key) => {
+      const value = itemData[key];
+      if (value !== null && value !== undefined && value !== '') {
+        const keyVariations = [
+          key,
+          key.toLowerCase().replace(/\s+/g, '_'),
+          key.toLowerCase().replace(/\s+/g, '-'),
+          key.toLowerCase(),
+        ];
+        
+        keyVariations.forEach(keyVar => {
+          const escaped = keyVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`\\{\\{${escaped}\\}\\}`, 'gi');
+          processed = processed.replace(regex, String(value));
+        });
+      }
+    });
+    
+    return processed;
+  };
+
+  // Function to replace collection placeholders and render blog list
+  const replaceCollectionPlaceholders = useMemo(() => {
+    return (html: string): string => {
+      if (!html) return html;
+      if (collections.length === 0) return html;
+      
+      // Use all collections (no filtering)
+      let filteredCollections = collections;
+      
+      let processedHtml = html;
+      
+      // Match {{collection:slug}} pattern
+      const collectionPattern = /\{\{collection:([^}]+)\}\}/g;
+      const collectionMatches = Array.from(html.matchAll(collectionPattern));
+      
+      if (collectionMatches.length > 0) {
+        // Process collections in reverse order to maintain correct indices
+        const matchesArray = Array.from(collectionMatches).reverse();
+        
+        matchesArray.forEach((match) => {
+          const fullMatch = match[0];
+          const slug = match[1].trim();
+          const collection = filteredCollections.find((c) => c.slug === slug);
+          
+          
+          if (!collection || !collection.items || collection.items.length === 0) {
+            processedHtml = processedHtml.replace(fullMatch, `<div style="padding: 1rem; background: #f5f5f5; border-radius: 4px; margin: 1rem 0;">
+              <p style="color: #666; margin: 0;">Collection "${slug}" not found or has no published items.</p>
+            </div>`);
+            return;
+          }
+
+          const items = collection.items;
+          const fields = collection.fields || [];
+          
+          // Find the placeholder in the current processed HTML
+          const placeholderIndex = processedHtml.indexOf(fullMatch);
+          if (placeholderIndex === -1) return; // Already processed
+          
+          // Split: content before placeholder, and content after placeholder
+          const beforePlaceholder = processedHtml.substring(0, placeholderIndex);
+          const afterPlaceholder = processedHtml.substring(placeholderIndex + fullMatch.length);
+          
+          // Use collection's page template if available, otherwise use template from page content
+          let template = '';
+          
+          // First, try to use the collection's page template
+          if (collection.template && collection.template.trim().length > 0) {
+            template = collection.template;
+          } else {
+            // Fallback to template from page content (after placeholder)
+            const nextCollectionPattern = /\{\{collection:([^}]+)\}\}/;
+            const nextMatch = afterPlaceholder.match(nextCollectionPattern);
+            
+            if (nextMatch && nextMatch.index !== undefined) {
+              // There's another collection placeholder after this one
+              // Template is everything between this placeholder and the next one
+              template = afterPlaceholder.substring(0, nextMatch.index).trim();
+            } else {
+              // No more collection placeholders, template is everything after this placeholder
+              template = afterPlaceholder.trim();
+            }
+            
+            // If no template provided after placeholder, create a default one
+            if (!template || template.length === 0) {
+              template = `
+                <div class="collection-item" style="margin-bottom: 2rem; padding: 1.5rem; border: 1px solid #e5e5e5; border-radius: 8px;">
+                  <h2>{{title}}</h2>
+                  <p>{{description}}</p>
+                </div>
+              `;
+            }
+          }
+          
+          // Render each item using ONLY the template (not the entire HTML)
+          // Each item will be rendered separately, so if you have 2 items, you'll get 2 rendered templates
+          const itemsHtml = items
+            .map((item: any, index: number) => {
+              const itemData = item.data || {};
+              
+              // Add item metadata to itemData for use in templates
+              const enhancedItemData = {
+                ...itemData,
+                _itemId: item.id,
+                _itemIndex: index,
+                _itemNumber: index + 1,
+                _totalItems: items.length,
+                // Slug is usually stored in itemData, but ensure it's accessible
+                slug: itemData.slug || itemData.Slug || itemData.SLUG || '',
+              };
+              
+              // Use ONLY the template part (after placeholder), replacing field placeholders with item data
+              let itemHtml = replaceFieldPlaceholders(template, enhancedItemData, fields);
+              
+              // Add item-specific classes and data attributes for styling
+              itemHtml = itemHtml.replace(
+                /<(\w+)([^>]*)>/g,
+                (match, tag, attrs) => {
+                  // Add data-item-id and data-item-index to the first element of each item
+                  if (!attrs.includes('data-item-id')) {
+                    return `<${tag}${attrs} data-item-id="${item.id}" data-item-index="${index}" data-item-slug="${enhancedItemData.slug}">`;
+                  }
+                  return match;
+                }
+              );
+              
+              return itemHtml;
+            })
+            .join('\n');
+          
+          // Replace the collection placeholder with rendered items
+          // Keep content before placeholder, replace placeholder with items
+          // DO NOT add afterPlaceholder back - it's the template that was already used to render items
+          processedHtml = beforePlaceholder + itemsHtml;
+        });
+      } else {
+        // No collection placeholder, but might have field placeholders
+        const fieldPattern = /\{\{([^}]+)\}\}/g;
+        const hasFieldPlaceholders = fieldPattern.test(html);
+        
+        if (hasFieldPlaceholders) {
+          // Try each collection to find matching fields
+          for (const collection of collections) {
+            if (collection.items && collection.items.length > 0) {
+              const fields = collection.fields || [];
+              const firstItem = collection.items[0];
+              const itemData = firstItem.data || {};
+              
+              const testResult = replaceFieldPlaceholders(html, itemData, fields);
+              if (testResult !== html) {
+                processedHtml = testResult;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      return processedHtml;
+    };
+  }, [collections]);
+
+  // Process content to replace placeholders
+  const processedContent = useMemo(() => {
+    return replaceCollectionPlaceholders(content || '');
+  }, [content, collections, replaceCollectionPlaceholders]);
+
   // Escape script tags in JS code
   const escapedJs = (jsCode || '').replace(/<\/script>/gi, '<\\/script>');
+  
+  // Escape CSS to prevent breaking style tag
+  const escapedCss = (cssCode || '').replace(/<\/style>/gi, '<\\/style>');
+  
+  // For HTML content, we need to escape only template literal special characters
+  // but NOT HTML tags - we want them to render as actual HTML
+  // Escape backticks and ${ to prevent template literal injection
+  const safeContent = (processedContent || '')
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${');
   
   const previewSrcDoc = `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>${cssCode || ""}</style>
+    <style>${escapedCss}</style>
   </head>
   <body>
     <div style="padding: 2rem">
-      <div class="prose" style="max-width:none;color:#171717">${content || ''}</div>
+      <div class="prose" style="max-width:none;color:#171717">${safeContent}</div>
     </div>
     <script>
       (function() {
@@ -305,6 +571,35 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                   <div className="space-y-2">
                     <Label htmlFor="content">Content</Label>
                     <WysiwygEditor value={content} onChange={setContent} />
+                    {collections.length > 0 && (
+                      <div className="text-sm text-neutral-500 mt-2 space-y-1 p-3 bg-neutral-50 rounded border border-neutral-200">
+                        <p>
+                          <strong>Blog List Example:</strong> To display a list of blog posts, use:
+                        </p>
+                        <div className="mt-2 space-y-1 text-xs font-mono bg-white p-2 rounded">
+                          <div className="text-neutral-600">{`<!-- Content before collection (shown once) -->`}</div>
+                          <div className="text-neutral-600">{`<h1>My Blog</h1>`}</div>
+                          <div className="mt-2">{`{{collection:blog}}`}</div>
+                          <div className="mt-2 text-neutral-600">{`<!-- Template for each item (put AFTER collection placeholder) -->`}</div>
+                          <div className="ml-4">{`<div class="blog-item">`}</div>
+                          <div className="ml-8">{`<h2><a href="/blog/{{slug}}">{{title}}</a></h2>`}</div>
+                          <div className="ml-8">{`<p>{{description}}</p>`}</div>
+                          <div className="ml-4">{`</div>`}</div>
+                        </div>
+                        <p className="text-xs mt-2 font-semibold text-neutral-700">
+                          ⚠️ Important: Put your template HTML AFTER the collection placeholder!
+                        </p>
+                        <p className="text-xs mt-1">
+                          <strong>Multiple Items:</strong> If you have 2 items, both will be displayed. Each item uses the template AFTER <code className="bg-white px-1 py-0.5 rounded">{`{{collection:blog}}`}</code>
+                        </p>
+                        <p className="text-xs mt-1">
+                          <strong>Field Names:</strong> Use exact field labels from your collection (case-insensitive). Example: if field is "Title", use <code className="bg-white px-1 py-0.5 rounded">{`{{title}}`}</code> or <code className="bg-white px-1 py-0.5 rounded">{`{{Title}}`}</code>
+                        </p>
+                        <p className="text-xs mt-1">
+                          <strong>Item Slug:</strong> Use <code className="bg-white px-1 py-0.5 rounded">{`{{slug}}`}</code> for item slugs in links.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -339,31 +634,35 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                     scrollbar-color: #d4d4d4 #f5f5f5;
                   }
                 `}</style>
-                <div className="mb-4 flex items-center justify-center gap-2">
-                  <Button
-                    variant={previewDevice === "desktop" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewDevice("desktop")}
-                    className={previewDevice === "desktop" ? "bg-neutral-900" : ""}
-                  >
-                    Desktop
-                  </Button>
-                  <Button
-                    variant={previewDevice === "tablet" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewDevice("tablet")}
-                    className={previewDevice === "tablet" ? "bg-neutral-900" : ""}
-                  >
-                    Tablet
-                  </Button>
-                  <Button
-                    variant={previewDevice === "mobile" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewDevice("mobile")}
-                    className={previewDevice === "mobile" ? "bg-neutral-900" : ""}
-                  >
-                    Mobile
-                  </Button>
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <Button
+                      variant={previewDevice === "desktop" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewDevice("desktop")}
+                      className={previewDevice === "desktop" ? "bg-neutral-900" : ""}
+                    >
+                      Desktop
+                    </Button>
+                    <Button
+                      variant={previewDevice === "tablet" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewDevice("tablet")}
+                      className={previewDevice === "tablet" ? "bg-neutral-900" : ""}
+                    >
+                      Tablet
+                    </Button>
+                    <Button
+                      variant={previewDevice === "mobile" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewDevice("mobile")}
+                      className={previewDevice === "mobile" ? "bg-neutral-900" : ""}
+                    >
+                      Mobile
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex justify-center">
                   <div
@@ -392,11 +691,12 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         open={showFullPreview}
         onClose={() => setShowFullPreview(false)}
         pageTitle={title}
-        pageBody={content}
+        pageBody={processedContent}
         headerContent={previewHeaderHtml}
         footerContent={previewFooterHtml}
         customCss={cssCode}
         customJs={jsCode}
+        collections={collections}
       />
     </div>
   );

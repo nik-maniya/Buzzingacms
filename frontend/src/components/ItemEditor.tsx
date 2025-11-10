@@ -42,9 +42,27 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
         if (response.data.success) {
           const apiFields = response.data.data || [];
           const transformedFields = apiFields.map((apiField: any) => {
-            // Parse options from defaultValue if it's JSON
+            // Get options from options field, fallback to defaultValue for backward compatibility
             let options: string[] = [];
-            if (apiField.defaultValue) {
+            
+            // First try to get options from the options field
+            if (apiField.options) {
+              if (Array.isArray(apiField.options)) {
+                options = apiField.options;
+              } else if (typeof apiField.options === 'string') {
+                try {
+                  const parsed = JSON.parse(apiField.options);
+                  if (Array.isArray(parsed)) {
+                    options = parsed;
+                  }
+                } catch (e) {
+                  // Not valid JSON
+                }
+              }
+            }
+            
+            // If no options found, check defaultValue for backward compatibility
+            if (options.length === 0 && apiField.defaultValue) {
               try {
                 const parsed = JSON.parse(apiField.defaultValue);
                 if (Array.isArray(parsed)) {
