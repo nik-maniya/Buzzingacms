@@ -25,29 +25,27 @@ export function PublicPageTemplate({
   const [globalFooterCss, setGlobalFooterCss] = useState<string>("");
   const [globalHeaderJs, setGlobalHeaderJs] = useState<string>("");
   const [globalFooterJs, setGlobalFooterJs] = useState<string>("");
+  // Render HTML content safely (in production, use DOMPurify)
+  const createMarkup = (html: string) => {
+    if (!html) return { __html: '' };
+    // dangerouslySetInnerHTML expects raw HTML string
+    // React will render it as actual HTML elements
+    return { __html: html };
+  };
   
-  // Decode HTML entities if needed
-  const decodeHtmlEntities = (html: string): string => {
+  // Helper to ensure HTML is properly formatted for rendering
+  const ensureHtmlRendering = (html: string): string => {
     if (!html) return '';
-    
-    // Check if content is HTML-encoded
+    // Check if HTML contains escaped entities (like &lt; instead of <)
+    // If it does, decode them. Otherwise, use as-is.
     if (html.includes('&lt;') || html.includes('&gt;') || html.includes('&amp;')) {
+      // Content appears to be HTML-escaped, decode it
       const txt = document.createElement('textarea');
       txt.innerHTML = html;
       return txt.value;
     }
-    
+    // Content is already raw HTML, use directly
     return html;
-  };
-  
-  // Render HTML content safely
-  const createMarkup = (html: string) => {
-    if (!html) return { __html: '' };
-    
-    // Decode HTML entities first
-    const decodedHtml = decodeHtmlEntities(html);
-    
-    return { __html: decodedHtml };
   };
 
   // Load global header/footer from Menus API (applies across all pages)
@@ -141,72 +139,10 @@ export function PublicPageTemplate({
   return (
     <div className={`${containerWidth} mx-auto bg-white min-h-screen flex flex-col`}>
       {/* Custom CSS for preview/published rendering */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        ${mergedCss}
-        
-        /* Ensure heading tags are visible and styled properly */
-        article h1 {
-          font-size: 2.25rem !important;
-          font-weight: 700 !important;
-          margin-top: 2rem !important;
-          margin-bottom: 1rem !important;
-          line-height: 1.2 !important;
-          color: #171717 !important;
-        }
-        
-        article h2 {
-          font-size: 1.875rem !important;
-          font-weight: 700 !important;
-          margin-top: 1.75rem !important;
-          margin-bottom: 0.875rem !important;
-          line-height: 1.3 !important;
-          color: #171717 !important;
-        }
-        
-        article h3 {
-          font-size: 1.5rem !important;
-          font-weight: 600 !important;
-          margin-top: 1.5rem !important;
-          margin-bottom: 0.75rem !important;
-          line-height: 1.4 !important;
-          color: #262626 !important;
-        }
-        
-        article h4 {
-          font-size: 1.25rem !important;
-          font-weight: 600 !important;
-          margin-top: 1.25rem !important;
-          margin-bottom: 0.625rem !important;
-          line-height: 1.4 !important;
-          color: #262626 !important;
-        }
-        
-        article h5 {
-          font-size: 1.125rem !important;
-          font-weight: 600 !important;
-          margin-top: 1rem !important;
-          margin-bottom: 0.5rem !important;
-          line-height: 1.5 !important;
-          color: #404040 !important;
-        }
-        
-        article h6 {
-          font-size: 1rem !important;
-          font-weight: 600 !important;
-          margin-top: 1rem !important;
-          margin-bottom: 0.5rem !important;
-          line-height: 1.5 !important;
-          color: #404040 !important;
-        }
-        
-        article p {
-          margin-bottom: 1rem !important;
-          line-height: 1.75 !important;
-          color: #525252 !important;
-        }
-      ` }} />
-      
-      {/* Header Section */}
+      {mergedCss ? (
+        <style dangerouslySetInnerHTML={{ __html: mergedCss }} />
+      ) : null}
+      {/* Header Section (no static styling) */}
       {(globalHeaderHtml || headerContent) ? (
         <div
           dangerouslySetInnerHTML={createMarkup(globalHeaderHtml || headerContent)}
@@ -216,9 +152,11 @@ export function PublicPageTemplate({
       {/* Body Section */}
       <main className="flex-1 w-full">
         <article className="max-w-[900px] mx-auto px-6 py-12">
+          {/* Page Body Content */}
           {bodyContent ? (
             <div
-              dangerouslySetInnerHTML={createMarkup(bodyContent)}
+              className="prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_h1]:text-neutral-900 [&_h2]:text-neutral-900 [&_h3]:text-neutral-800 [&_p]:text-neutral-700 [&_p]:leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: ensureHtmlRendering(bodyContent) }}
             />
           ) : (
             <div className="text-neutral-400 text-center py-12">
@@ -228,7 +166,7 @@ export function PublicPageTemplate({
         </article>
       </main>
 
-      {/* Footer Section */}
+      {/* Footer Section (no static styling) */}
       {(globalFooterHtml || footerContent) ? (
         <div
           dangerouslySetInnerHTML={createMarkup(globalFooterHtml || footerContent)}

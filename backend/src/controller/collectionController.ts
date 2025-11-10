@@ -245,7 +245,7 @@ export const getCollectionsWithItems = async (req: AuthRequest, res: Response, n
             throw new ApiError('Invalid user ID', 400);
         }
 
-        // Get first 3 collections for the user with their published items
+        // Get all collections for the user with their published items
         const collections = await prisma.collection.findMany({
             where: {
                 authorId: userIdInt,
@@ -268,7 +268,6 @@ export const getCollectionsWithItems = async (req: AuthRequest, res: Response, n
             orderBy: {
                 updatedAt: 'desc',
             },
-            take: 3, // Limit to first 3 collections
         });
 
         res.json({

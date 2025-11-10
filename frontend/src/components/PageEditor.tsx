@@ -30,9 +30,8 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
   const [previewHeaderHtml, setPreviewHeaderHtml] = useState<string>("");
   const [previewFooterHtml, setPreviewFooterHtml] = useState<string>("");
   const [collections, setCollections] = useState<any[]>([]);
-  const [selectedCollectionFilters, setSelectedCollectionFilters] = useState<string[]>([]);
 
-  // Load collections with items and their templates
+  // Load collections with items
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -47,31 +46,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       .then(async (r) => {
         const res = await r.json();
         if (r.ok && res?.data) {
-          const collectionsData = Array.isArray(res.data) ? res.data : [];
-          
-          // Fetch templates for each collection
-          const collectionsWithTemplates = await Promise.all(
-            collectionsData.map(async (collection: any) => {
-              try {
-                const templateRes = await fetch(
-                  `${apiBase}/api/page-templates/getAllPageTemplates/${collection.id}`,
-                  { headers: { Authorization: `Bearer ${token}` } }
-                );
-                const templateData = await templateRes.json();
-                if (templateData.success && templateData.data && templateData.data.length > 0) {
-                  // Get the latest template (first one, as they're ordered by updatedAt desc)
-                  collection.template = templateData.data[0].htmlContent || '';
-                } else {
-                  collection.template = '';
-                }
-              } catch {
-                collection.template = '';
-              }
-              return collection;
-            })
-          );
-          
-          setCollections(collectionsWithTemplates);
+          setCollections(Array.isArray(res.data) ? res.data : []);
         }
       })
       .catch(() => {});
@@ -279,12 +254,6 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       if (!html) return html;
       if (collections.length === 0) return html;
       
-      // Filter collections based on selection
-      let filteredCollections = collections;
-      if (selectedCollectionFilters.length > 0) {
-        filteredCollections = collections.filter((c) => selectedCollectionFilters.includes(c.slug));
-      }
-      
       let processedHtml = html;
       
       // Match {{collection:slug}} pattern
@@ -298,13 +267,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         matchesArray.forEach((match) => {
           const fullMatch = match[0];
           const slug = match[1].trim();
-          const collection = filteredCollections.find((c) => c.slug === slug);
-          
-          // If collection filter is active and this collection doesn't match, hide it
-          if (selectedCollectionFilters.length > 0 && !selectedCollectionFilters.includes(collection?.slug)) {
-            processedHtml = processedHtml.replace(fullMatch, '');
-            return;
-          }
+          const collection = collections.find((c) => c.slug === slug);
           
           if (!collection || !collection.items || collection.items.length === 0) {
             processedHtml = processedHtml.replace(fullMatch, `<div style="padding: 1rem; background: #f5f5f5; border-radius: 4px; margin: 1rem 0;">
@@ -320,39 +283,33 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
           const placeholderIndex = processedHtml.indexOf(fullMatch);
           if (placeholderIndex === -1) return; // Already processed
           
-          // Split: content before placeholder, and content after placeholder
+          // Split: content before placeholder, and template after placeholder
           const beforePlaceholder = processedHtml.substring(0, placeholderIndex);
           const afterPlaceholder = processedHtml.substring(placeholderIndex + fullMatch.length);
           
-          // Use collection's page template if available, otherwise use template from page content
+          // Extract template - everything after the collection placeholder BUT stop at next {{collection:slug}}
+          // This ensures each collection has its own template
           let template = '';
+          const nextCollectionPattern = /\{\{collection:([^}]+)\}\}/;
+          const nextMatch = afterPlaceholder.match(nextCollectionPattern);
           
-          // First, try to use the collection's page template
-          if (collection.template && collection.template.trim().length > 0) {
-            template = collection.template;
+          if (nextMatch && nextMatch.index !== undefined) {
+            // There's another collection placeholder after this one
+            // Template is everything between this placeholder and the next one
+            template = afterPlaceholder.substring(0, nextMatch.index).trim();
           } else {
-            // Fallback to template from page content (after placeholder)
-            const nextCollectionPattern = /\{\{collection:([^}]+)\}\}/;
-            const nextMatch = afterPlaceholder.match(nextCollectionPattern);
-            
-            if (nextMatch && nextMatch.index !== undefined) {
-              // There's another collection placeholder after this one
-              // Template is everything between this placeholder and the next one
-              template = afterPlaceholder.substring(0, nextMatch.index).trim();
-            } else {
-              // No more collection placeholders, template is everything after this placeholder
-              template = afterPlaceholder.trim();
-            }
-            
-            // If no template provided after placeholder, create a default one
-            if (!template || template.length === 0) {
-              template = `
-                <div class="collection-item" style="margin-bottom: 2rem; padding: 1.5rem; border: 1px solid #e5e5e5; border-radius: 8px;">
-                  <h2>{{title}}</h2>
-                  <p>{{description}}</p>
-                </div>
-              `;
-            }
+            // No more collection placeholders, template is everything after this placeholder
+            template = afterPlaceholder.trim();
+          }
+          
+          // If no template provided after placeholder, create a default one
+          if (!template || template.length === 0) {
+            template = `
+              <div class="collection-item" style="margin-bottom: 2rem; padding: 1.5rem; border: 1px solid #e5e5e5; border-radius: 8px;">
+                <h2>{{title}}</h2>
+                <p>{{description}}</p>
+              </div>
+            `;
           }
           
           // Render each item using ONLY the template (not the entire HTML)
@@ -392,9 +349,11 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
             .join('\n');
           
           // Replace the collection placeholder with rendered items
-          // Keep content before placeholder, replace placeholder with items
-          // DO NOT add afterPlaceholder back - it's the template that was already used to render items
-          processedHtml = beforePlaceholder + itemsHtml;
+          // Keep content before placeholder, add rendered items, then add remaining content (for next collection)
+          const remainingContent = nextMatch && nextMatch.index !== undefined 
+            ? afterPlaceholder.substring(nextMatch.index) 
+            : '';
+          processedHtml = beforePlaceholder + itemsHtml + remainingContent;
         });
       } else {
         // No collection placeholder, but might have field placeholders
@@ -421,7 +380,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       
       return processedHtml;
     };
-  }, [collections, selectedCollectionFilters]);
+  }, [collections]);
 
   // Process content to replace placeholders
   const processedContent = useMemo(() => {
@@ -664,66 +623,31 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                     scrollbar-color: #d4d4d4 #f5f5f5;
                   }
                 `}</style>
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {collections.length > 0 && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedCollectionFilters([])}
-                        >
-                          All Collections
-                        </Button>
-                        {collections.map((collection) => {
-                          const isSelected = selectedCollectionFilters.includes(collection.slug);
-                          return (
-                            <Button
-                              key={collection.id}
-                              variant={isSelected ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSelectedCollectionFilters(prev => prev.filter(s => s !== collection.slug));
-                                } else {
-                                  setSelectedCollectionFilters(prev => [...prev, collection.slug]);
-                                }
-                              }}
-                              className={isSelected ? "bg-yellow-400 text-neutral-900 hover:bg-yellow-500" : ""}
-                            >
-                              {collection.name}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-center gap-2">
-                    <Button
-                      variant={previewDevice === "desktop" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setPreviewDevice("desktop")}
-                      className={previewDevice === "desktop" ? "bg-neutral-900" : ""}
-                    >
-                      Desktop
-                    </Button>
-                    <Button
-                      variant={previewDevice === "tablet" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setPreviewDevice("tablet")}
-                      className={previewDevice === "tablet" ? "bg-neutral-900" : ""}
-                    >
-                      Tablet
-                    </Button>
-                    <Button
-                      variant={previewDevice === "mobile" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setPreviewDevice("mobile")}
-                      className={previewDevice === "mobile" ? "bg-neutral-900" : ""}
-                    >
-                      Mobile
-                    </Button>
-                  </div>
+                <div className="mb-4 flex items-center justify-center gap-2">
+                  <Button
+                    variant={previewDevice === "desktop" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPreviewDevice("desktop")}
+                    className={previewDevice === "desktop" ? "bg-neutral-900" : ""}
+                  >
+                    Desktop
+                  </Button>
+                  <Button
+                    variant={previewDevice === "tablet" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPreviewDevice("tablet")}
+                    className={previewDevice === "tablet" ? "bg-neutral-900" : ""}
+                  >
+                    Tablet
+                  </Button>
+                  <Button
+                    variant={previewDevice === "mobile" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPreviewDevice("mobile")}
+                    className={previewDevice === "mobile" ? "bg-neutral-900" : ""}
+                  >
+                    Mobile
+                  </Button>
                 </div>
                 <div className="flex justify-center">
                   <div
@@ -757,8 +681,6 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         footerContent={previewFooterHtml}
         customCss={cssCode}
         customJs={jsCode}
-        selectedCollectionFilters={selectedCollectionFilters}
-        collections={collections}
       />
     </div>
   );

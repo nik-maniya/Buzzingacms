@@ -2,7 +2,6 @@ import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Monitor, Tablet, Smartphone, ExternalLink, X } from "lucide-react";
 import { PublicPageTemplate } from "./PublicPageTemplate";
 import { cn } from "./ui/utils";
@@ -30,13 +29,12 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [collections, setCollections] = useState<any[]>([]);
-  const [selectedCollectionFilters, setSelectedCollectionFilters] = useState<string[]>([]);
 
   const apiBase = (import.meta as any).env?.VITE_API_URL
     ? (import.meta as any).env.VITE_API_URL
     : "http://localhost:5000";
 
-  // Fetch collections for placeholder processing with their templates
+  // Fetch collections for placeholder processing
   useEffect(() => {
     if (!open) return;
     const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
@@ -52,30 +50,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
         const res = await r.json();
         if (!r.ok) throw new Error(res?.message || "Failed to load collections");
         const list = Array.isArray(res?.data) ? res.data : [];
-        
-        // Fetch templates for each collection
-        const collectionsWithTemplates = await Promise.all(
-          list.map(async (collection: any) => {
-            try {
-              const templateRes = await fetch(
-                `${apiBase}/api/page-templates/getAllPageTemplates/${collection.id}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
-              const templateData = await templateRes.json();
-              if (templateData.success && templateData.data && templateData.data.length > 0) {
-                // Get the latest template (first one, as they're ordered by updatedAt desc)
-                collection.template = templateData.data[0].htmlContent || '';
-              } else {
-                collection.template = '';
-              }
-            } catch {
-              collection.template = '';
-            }
-            return collection;
-          })
-        );
-        
-        setCollections(collectionsWithTemplates);
+        setCollections(list);
       })
       .catch(() => {
         setCollections([]);
@@ -237,12 +212,6 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
       if (!html) return html;
       if (collections.length === 0) return html;
       
-      // Filter collections based on selection
-      let filteredCollections = collections;
-      if (selectedCollectionFilters.length > 0) {
-        filteredCollections = collections.filter((c) => selectedCollectionFilters.includes(c.slug));
-      }
-      
       let processedHtml = html;
       
       // Match {{collection:slug}} pattern
@@ -256,13 +225,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
         matchesArray.forEach((match) => {
           const fullMatch = match[0];
           const slug = match[1].trim();
-          const collection = filteredCollections.find((c) => c.slug === slug);
-          
-          // If collection filter is active and this collection doesn't match, hide it
-          if (selectedCollectionFilters.length > 0 && !selectedCollectionFilters.includes(collection?.slug)) {
-            processedHtml = processedHtml.replace(fullMatch, '');
-            return;
-          }
+          const collection = collections.find((c) => c.slug === slug);
           
           if (!collection || !collection.items || collection.items.length === 0) {
             processedHtml = processedHtml.replace(fullMatch, `<div style="padding: 1rem; background: #f5f5f5; border-radius: 4px; margin: 1rem 0;">
@@ -278,39 +241,33 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
           const placeholderIndex = processedHtml.indexOf(fullMatch);
           if (placeholderIndex === -1) return; // Already processed
           
-          // Split: content before placeholder, and content after placeholder
+          // Split: content before placeholder, and template after placeholder
           const beforePlaceholder = processedHtml.substring(0, placeholderIndex);
           const afterPlaceholder = processedHtml.substring(placeholderIndex + fullMatch.length);
           
-          // Use collection's page template if available, otherwise use template from page content
+          // Extract template - everything after the collection placeholder BUT stop at next {{collection:slug}}
+          // This ensures each collection has its own template
           let template = '';
+          const nextCollectionPattern = /\{\{collection:([^}]+)\}\}/;
+          const nextMatch = afterPlaceholder.match(nextCollectionPattern);
           
-          // First, try to use the collection's page template
-          if (collection.template && collection.template.trim().length > 0) {
-            template = collection.template;
+          if (nextMatch && nextMatch.index !== undefined) {
+            // There's another collection placeholder after this one
+            // Template is everything between this placeholder and the next one
+            template = afterPlaceholder.substring(0, nextMatch.index).trim();
           } else {
-            // Fallback to template from page content (after placeholder)
-            const nextCollectionPattern = /\{\{collection:([^}]+)\}\}/;
-            const nextMatch = afterPlaceholder.match(nextCollectionPattern);
-            
-            if (nextMatch && nextMatch.index !== undefined) {
-              // There's another collection placeholder after this one
-              // Template is everything between this placeholder and the next one
-              template = afterPlaceholder.substring(0, nextMatch.index).trim();
-            } else {
-              // No more collection placeholders, template is everything after this placeholder
-              template = afterPlaceholder.trim();
-            }
-            
-            // If no template provided after placeholder, create a default one
-            if (!template || template.length === 0) {
-              template = `
-                <div class="collection-item" style="margin-bottom: 2rem; padding: 1.5rem; border: 1px solid #e5e5e5; border-radius: 8px;">
-                  <h2>{{title}}</h2>
-                  <p>{{description}}</p>
-                </div>
-              `;
-            }
+            // No more collection placeholders, template is everything after this placeholder
+            template = afterPlaceholder.trim();
+          }
+          
+          // If no template provided after placeholder, create a default one
+          if (!template || template.length === 0) {
+            template = `
+              <div class="collection-item" style="margin-bottom: 2rem; padding: 1.5rem; border: 1px solid #e5e5e5; border-radius: 8px;">
+                <h2>{{title}}</h2>
+                <p>{{description}}</p>
+              </div>
+            `;
           }
           
           // Render each item using ONLY the template
@@ -345,7 +302,11 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
             .join('\n');
           
           // Replace the collection placeholder with rendered items
-          processedHtml = beforePlaceholder + itemsHtml;
+          // Keep content before placeholder, add rendered items, then add remaining content (for next collection)
+          const remainingContent = nextMatch && nextMatch.index !== undefined 
+            ? afterPlaceholder.substring(nextMatch.index) 
+            : '';
+          processedHtml = beforePlaceholder + itemsHtml + remainingContent;
         });
       } else {
         // No collection placeholder, but might have field placeholders
@@ -371,7 +332,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
       
       return processedHtml;
     };
-  }, [collections, selectedCollectionFilters]);
+  }, [collections]);
 
   // Process the selected page's content
   const processedContent = useMemo(() => {
@@ -450,39 +411,6 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Collection Filter */}
-            {collections.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedCollectionFilters([])}
-                >
-                  All
-                </Button>
-                {collections.map((collection) => {
-                  const isSelected = selectedCollectionFilters.includes(collection.slug);
-                  return (
-                    <Button
-                      key={collection.id}
-                      variant={isSelected ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedCollectionFilters(prev => prev.filter(s => s !== collection.slug));
-                        } else {
-                          setSelectedCollectionFilters(prev => [...prev, collection.slug]);
-                        }
-                      }}
-                      className={isSelected ? "bg-yellow-400 text-neutral-900 hover:bg-yellow-500" : ""}
-                    >
-                      {collection.name}
-                    </Button>
-                  );
-                })}
-              </div>
-            )}
-            {/* Device Switcher */}
             <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-1">
               {devices.map((device) => {
                 const Icon = device.icon;
@@ -562,3 +490,5 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
     </Dialog>
   );
 }
+
+
