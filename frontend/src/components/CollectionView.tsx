@@ -28,6 +28,11 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
   const codeEditorRef = useRef<CodeEditorRef>(null);
+  const [templateCss, setTemplateCss] = useState<string>("");
+  const [templateJs, setTemplateJs] = useState<string>("");
+  const [templateTab, setTemplateTab] = useState<"html" | "css" | "js">("html");
+  const cssEditorRef = useRef<CodeEditorRef>(null);
+  const jsEditorRef = useRef<CodeEditorRef>(null);
 
   // HTML tags list
   const htmlTags = [
@@ -68,6 +73,29 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     }
   }, [initialTab]);
 
+  // Parse HTML content to extract CSS and JS
+  const parseTemplateContent = (htmlContent: string) => {
+    let html = htmlContent || "";
+    let css = "";
+    let js = "";
+
+    // Extract CSS from <style> tags
+    const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+    if (styleMatch) {
+      css = styleMatch[1].trim();
+      html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").trim();
+    }
+
+    // Extract JS from <script> tags
+    const scriptMatch = html.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+    if (scriptMatch) {
+      js = scriptMatch[1].trim();
+      html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").trim();
+    }
+
+    return { html, css, js };
+  };
+
   // Load saved template from API using getById
   useEffect(() => {
     const loadTemplate = async () => {
@@ -83,33 +111,42 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
           // Get the first template (or most recent one) to get its ID
           const template = res.data.data[0];
           const templateIdStr = template.id.toString();
-          console.log("Template ID found:", templateIdStr);
           setTemplateId(templateIdStr);
           
           // Now use getById to fetch complete template data
-          console.log("Calling getById with ID:", templateIdStr);
           const templateRes = await pageTemplatesAPI.getById(templateIdStr);
-          console.log("getById response:", templateRes);
           
           if (templateRes.data.success && templateRes.data.data) {
             const templateData = templateRes.data.data;
-            console.log("Template data loaded:", templateData);
-            setTemplateHtml(templateData.htmlContent || "");
-            setCustomCss(templateData.customCss || "");
-            setCustomJs(templateData.customJs || "");
+            // Use customCss and customJs from API if available, otherwise parse from htmlContent
+            if (templateData.customCss !== undefined || templateData.customJs !== undefined) {
+              // Use separate fields from database
+              setTemplateHtml(templateData.htmlContent || "");
+              setTemplateCss(templateData.customCss || "");
+              setTemplateJs(templateData.customJs || "");
+            } else {
+              // Fallback: parse from htmlContent for backward compatibility
+              const parsed = parseTemplateContent(templateData.htmlContent || "");
+              setTemplateHtml(parsed.html);
+              setTemplateCss(parsed.css);
+              setTemplateJs(parsed.js);
+            }
           } else {
-            console.log("getById failed, using getAll data");
             // Fallback to data from getAll if getById fails
-            setTemplateHtml(template.htmlContent || "");
-            setCustomCss(template.customCss || "");
-            setCustomJs(template.customJs || "");
+            if (template.customCss !== undefined || template.customJs !== undefined) {
+              setTemplateHtml(template.htmlContent || "");
+              setTemplateCss(template.customCss || "");
+              setTemplateJs(template.customJs || "");
+            } else {
+              const parsed = parseTemplateContent(template.htmlContent || "");
+              setTemplateHtml(parsed.html);
+              setTemplateCss(parsed.css);
+              setTemplateJs(parsed.js);
+            }
           }
-        } else {
-          console.log("No templates found for collection");
         }
       } catch (e: any) {
         console.error("Error loading template:", e);
-        console.error("Error details:", e?.response?.data || e?.message);
         toast.error("Failed to load template: " + (e?.response?.data?.message || e?.message || "Unknown error"));
       } finally {
         setIsLoadingTemplate(false);
@@ -154,25 +191,33 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     try {
       setIsSavingTemplate(true);
       
-      // Validate that template has content
-      const trimmedHtml = templateHtml?.trim() || "";
-      if (!trimmedHtml) {
-        toast.error("Please add HTML content before saving the template.");
+      const html = templateHtml?.trim() || "";
+      const css = templateCss?.trim() || "";
+      const js = templateJs?.trim() || "";
+      
+      // At least one field should have content
+      if (!html && !css && !js) {
+        toast.error("Please add content before saving the template.");
         setIsSavingTemplate(false);
         return;
       }
       
+      // Prepare template data with separate fields
+      const templateData = {
+        htmlContent: html,
+        customCss: css || null,
+        customJs: js || null,
+      };
+      
       if (templateId) {
         // Update existing template
-        await pageTemplatesAPI.update(templateId, {
-          htmlContent: trimmedHtml,
-        });
+        await pageTemplatesAPI.update(templateId, templateData);
         toast.success("Template updated successfully!");
       } else {
         // Create new template
         const res = await pageTemplatesAPI.create({
           collectionId: collection.id,
-          htmlContent: trimmedHtml,     
+          ...templateData,
         });
         if (res.data.success && res.data.data) {
           setTemplateId(res.data.data.id.toString());
@@ -199,6 +244,8 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
       
       // Clear local state
       setTemplateHtml("");
+      setTemplateCss("");
+      setTemplateJs("");
       setTemplateId(null);
       
       // Also clear localStorage
@@ -210,6 +257,8 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
       toast.error(e?.response?.data?.message || "Failed to delete template.");
       // Still clear local state even if API call fails
       setTemplateHtml("");
+      setTemplateCss("");
+      setTemplateJs("");
       setTemplateId(null);
     } finally {
       setIsSavingTemplate(false);
@@ -227,6 +276,20 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     if (codeEditorRef.current) {
       codeEditorRef.current.insertText(tag);
       toast.success("HTML tag inserted");
+    }
+  };
+
+  const handleInsertCssTag = (tag: string) => {
+    if (cssEditorRef.current) {
+      cssEditorRef.current.insertText(tag);
+      toast.success("CSS inserted");
+    }
+  };
+
+  const handleInsertJsTag = (tag: string) => {
+    if (jsEditorRef.current) {
+      jsEditorRef.current.insertText(tag);
+      toast.success("JavaScript inserted");
     }
   };
 
@@ -301,42 +364,95 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
 
             {/* Display Page Template Tab */}
             <TabsContent value="template" className="h-full m-0 p-8 overflow-auto bg-neutral-50">
-              <div className="max-w-6xl mx-auto flex grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 w-full space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-neutral-900">HTML</h3>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        onClick={handleResetTemplate}
-                        disabled={isSavingTemplate || isLoadingTemplate}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        {isSavingTemplate ? "Deleting..." : "Delete"}
-                      </Button>
-                      <Button 
-                        className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500" 
-                        onClick={handleSaveTemplate}
-                        disabled={isSavingTemplate || isLoadingTemplate}
-                      >
-                        <Save className="w-4 h-4 mr-2" />
-                        {isSavingTemplate ? "Saving..." : "Save Template"}
-                      </Button>
-                    </div>
+              <div className="max-w-6xl mx-auto flex flex-col gap-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-neutral-900">Display Page Template</h3>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleResetTemplate}
+                      disabled={isSavingTemplate || isLoadingTemplate}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {isSavingTemplate ? "Deleting..." : "Delete"}
+                    </Button>
+                    <Button 
+                      className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500" 
+                      onClick={handleSaveTemplate}
+                      disabled={isSavingTemplate || isLoadingTemplate}
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {isSavingTemplate ? "Saving..." : "Save Template"}
+                    </Button>
                   </div>
-                  {isLoadingTemplate ? (
-                    <div className="flex items-center justify-center h-[500px]">
-                      <p className="text-neutral-500">Loading template...</p>
-                    </div>
-                  ) : (
-                    <CodeEditor ref={codeEditorRef} value={templateHtml} onChange={setTemplateHtml} language="html" height={500} />
-                  )}
-                  <p className="text-sm text-neutral-500">
-                    Use placeholders from the right panel inside your HTML. They will be replaced by item values when rendering.
-                  </p>
                 </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 w-full space-y-4">
+                    <Tabs value={templateTab} onValueChange={(v) => setTemplateTab(v as "html" | "css" | "js")} className="w-full">
+                      <TabsList className="bg-transparent border-b border-neutral-200 rounded-none p-0 h-auto">
+                        <TabsTrigger
+                          value="html"
+                          className="data-[state=active]:bg-transparent data-[state=active]:text-neutral-900 data-[state=active]:border-b-2 data-[state=active]:border-yellow-400 rounded-none px-4"
+                        >
+                          HTML
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="css"
+                          className="data-[state=active]:bg-transparent data-[state=active]:text-neutral-900 data-[state=active]:border-b-2 data-[state=active]:border-yellow-400 rounded-none px-4"
+                        >
+                          CSS
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="js"
+                          className="data-[state=active]:bg-transparent data-[state=active]:text-neutral-900 data-[state=active]:border-b-2 data-[state=active]:border-yellow-400 rounded-none px-4"
+                        >
+                          JavaScript
+                        </TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="html" className="mt-4">
+                        {isLoadingTemplate ? (
+                          <div className="flex items-center justify-center h-[500px]">
+                            <p className="text-neutral-500">Loading template...</p>
+                          </div>
+                        ) : (
+                          <CodeEditor ref={codeEditorRef} value={templateHtml} onChange={setTemplateHtml} language="html" height={500} />
+                        )}
+                        <p className="text-sm text-neutral-500 mt-2">
+                          Use placeholders from the right panel inside your HTML. They will be replaced by item values when rendering.
+                        </p>
+                      </TabsContent>
+                      
+                      <TabsContent value="css" className="mt-4">
+                        {isLoadingTemplate ? (
+                          <div className="flex items-center justify-center h-[500px]">
+                            <p className="text-neutral-500">Loading template...</p>
+                          </div>
+                        ) : (
+                          <CodeEditor ref={cssEditorRef} value={templateCss} onChange={setTemplateCss} language="css" height={500} />
+                        )}
+                        <p className="text-sm text-neutral-500 mt-2">
+                          Add custom CSS styles for your template. These will be wrapped in a &lt;style&gt; tag when rendered.
+                        </p>
+                      </TabsContent>
+                      
+                      <TabsContent value="js" className="mt-4">
+                        {isLoadingTemplate ? (
+                          <div className="flex items-center justify-center h-[500px]">
+                            <p className="text-neutral-500">Loading template...</p>
+                          </div>
+                        ) : (
+                          <CodeEditor ref={jsEditorRef} value={templateJs} onChange={setTemplateJs} language="javascript" height={500} />
+                        )}
+                        <p className="text-sm text-neutral-500 mt-2">
+                          Add custom JavaScript for your template. These will be wrapped in a &lt;script&gt; tag when rendered.
+                        </p>
+                      </TabsContent>
+                    </Tabs>
+                  </div>
 
-                <div className="space-y-3">
+                  <div className="space-y-3">
                   <h3 className="text-neutral-900">Placeholders</h3>
                   <p className="text-sm text-neutral-500">Click to copy a placeholder.</p>
                   <div className="space-y-2">
@@ -396,6 +512,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
                 </div>
               </div>
             </TabsContent>
