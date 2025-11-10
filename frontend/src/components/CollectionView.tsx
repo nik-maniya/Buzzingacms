@@ -68,30 +68,49 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     }
   }, [initialTab]);
 
-  // Load saved template from API
+  // Load saved template from API using getById
   useEffect(() => {
     const loadTemplate = async () => {
       try {
         setIsLoadingTemplate(true);
+        console.log("Loading template for collection:", collection.id);
+        
+        // First, get all templates to find the template ID
         const res = await pageTemplatesAPI.getAll(collection.id);
+        console.log("getAll response:", res);
+        
         if (res.data.success && res.data.data && res.data.data.length > 0) {
-          // Get the first template (or most recent one)
+          // Get the first template (or most recent one) to get its ID
           const template = res.data.data[0];
-          setTemplateId(template.id.toString());
-          setTemplateHtml(template.htmlContent || "");
+          const templateIdStr = template.id.toString();
+          console.log("Template ID found:", templateIdStr);
+          setTemplateId(templateIdStr);
+          
+          // Now use getById to fetch complete template data
+          console.log("Calling getById with ID:", templateIdStr);
+          const templateRes = await pageTemplatesAPI.getById(templateIdStr);
+          console.log("getById response:", templateRes);
+          
+          if (templateRes.data.success && templateRes.data.data) {
+            const templateData = templateRes.data.data;
+            console.log("Template data loaded:", templateData);
+            setTemplateHtml(templateData.htmlContent || "");
+            setCustomCss(templateData.customCss || "");
+            setCustomJs(templateData.customJs || "");
+          } else {
+            console.log("getById failed, using getAll data");
+            // Fallback to data from getAll if getById fails
+            setTemplateHtml(template.htmlContent || "");
+            setCustomCss(template.customCss || "");
+            setCustomJs(template.customJs || "");
+          }
         } else {
-          // Fallback to localStorage if no API template exists
-          try {
-            const saved = localStorage.getItem(`collection-template-${collection.id}`);
-            if (saved) setTemplateHtml(saved);
-          } catch {}
+          console.log("No templates found for collection");
         }
-      } catch (e) {
-        // Fallback to localStorage on error
-        try {
-          const saved = localStorage.getItem(`collection-template-${collection.id}`);
-          if (saved) setTemplateHtml(saved);
-        } catch {}
+      } catch (e: any) {
+        console.error("Error loading template:", e);
+        console.error("Error details:", e?.response?.data || e?.message);
+        toast.error("Failed to load template: " + (e?.response?.data?.message || e?.message || "Unknown error"));
       } finally {
         setIsLoadingTemplate(false);
       }
@@ -153,18 +172,13 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
         // Create new template
         const res = await pageTemplatesAPI.create({
           collectionId: collection.id,
-          htmlContent: trimmedHtml,
+          htmlContent: trimmedHtml,     
         });
         if (res.data.success && res.data.data) {
           setTemplateId(res.data.data.id.toString());
           toast.success("Template created successfully!");
         }
       }
-      
-      // Also save to localStorage as backup
-      try {
-        localStorage.setItem(`collection-template-${collection.id}`, trimmedHtml);
-      } catch {}
     } catch (e: any) {
       console.error("Error saving template:", e);
       toast.error(e?.response?.data?.message || "Failed to save template.");
