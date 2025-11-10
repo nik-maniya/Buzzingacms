@@ -29,10 +29,65 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [collections, setCollections] = useState<any[]>([]);
+  const [showItemDetail, setShowItemDetail] = useState(false);
+  const [itemDetailData, setItemDetailData] = useState<{
+    htmlContent: string;
+    customCss: string;
+    customJs: string;
+  } | null>(null);
+  const [loadingItemDetail, setLoadingItemDetail] = useState(false);
 
   const apiBase = (import.meta as any).env?.VITE_API_URL
     ? (import.meta as any).env.VITE_API_URL
     : "http://localhost:5000";
+
+  // Function to open item detail
+  const openItemDetail = async (collectionId: number, itemId: number) => {
+    const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
+    if (!token) return;
+
+    setLoadingItemDetail(true);
+    setShowItemDetail(true);
+
+    try {
+      const response = await fetch(
+        `${apiBase}/api/page-templates/renderItem/${collectionId}/${itemId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const res = await response.json();
+      if (response.ok && res?.data) {
+        setItemDetailData({
+          htmlContent: res.data.htmlContent || '',
+          customCss: res.data.customCss || '',
+          customJs: res.data.customJs || '',
+        });
+      } else {
+        console.error('Failed to load item detail:', res?.message || 'Unknown error');
+        setShowItemDetail(false);
+      }
+    } catch (error) {
+      console.error('Error loading item detail:', error);
+      setShowItemDetail(false);
+    } finally {
+      setLoadingItemDetail(false);
+    }
+  };
+
+  // Listen for custom events to open item detail
+  useEffect(() => {
+    const handleCustomEvent = async (event: CustomEvent) => {
+      console.log('PagesLivePreview: Received custom event:', event.detail);
+      if (event.detail?.collectionId && event.detail?.itemId) {
+        await openItemDetail(event.detail.collectionId, event.detail.itemId);
+      }
+    };
+    
+    window.addEventListener('openItemDetail', handleCustomEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener('openItemDetail', handleCustomEvent as EventListener);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch collections for placeholder processing
   useEffect(() => {
@@ -286,6 +341,34 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
               
               let itemHtml = replaceFieldPlaceholders(template, enhancedItemData, fields);
               
+              // Make titles (h1-h6) and links (a) clickable to show item detail
+              const collectionId = collection.id;
+              const itemId = item.id;
+              
+              // First, make headings clickable
+              itemHtml = itemHtml.replace(
+                /<(h[1-6])([^>]*)>(.*?)<\/\1>/gi,
+                (match, tag, attrs, content) => {
+                  // Check if already has onclick or data attributes
+                  if (attrs.includes('onclick') || attrs.includes('data-collection-id')) return match;
+                  // Add data attributes and onclick that works in both iframe and direct rendering
+                  const safeOnclick = `(function(){try{if(window.parent!==window){window.parent.postMessage({type:'openItemDetail',collectionId:${collectionId},itemId:${itemId}},'*');}else{window.dispatchEvent(new CustomEvent('openItemDetail',{detail:{collectionId:${collectionId},itemId:${itemId}}}));}}catch(e){console.error(e);}})();`;
+                  return `<${tag}${attrs} data-collection-id="${collectionId}" data-item-id="${itemId}" onclick="${safeOnclick}" style="cursor: pointer; text-decoration: underline;">${content}</${tag}>`;
+                }
+              );
+              
+              // Also make links clickable (in case blog items are rendered as links)
+              itemHtml = itemHtml.replace(
+                /<a([^>]*)>(.*?)<\/a>/gi,
+                (match, attrs, content) => {
+                  // Check if already has onclick or data attributes, or if it's an external link
+                  if (attrs.includes('onclick') || attrs.includes('data-collection-id') || attrs.includes('href="http')) return match;
+                  // Add data attributes and onclick - event is automatically available
+                  const safeOnclick = `event.preventDefault();event.stopPropagation();try{if(window.parent!==window){window.parent.postMessage({type:'openItemDetail',collectionId:${collectionId},itemId:${itemId}},'*');}else{window.dispatchEvent(new CustomEvent('openItemDetail',{detail:{collectionId:${collectionId},itemId:${itemId}}}));}}catch(err){console.error(err);}return false;`;
+                  return `<a${attrs} data-collection-id="${collectionId}" data-item-id="${itemId}" onclick="${safeOnclick}" style="cursor: pointer;">${content}</a>`;
+                }
+              );
+              
               // Add item-specific classes and data attributes
               itemHtml = itemHtml.replace(
                 /<(\w+)([^>]*)>/g,
@@ -388,6 +471,39 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
     }
   };
 
+  // Attach click handlers to collection items using event delegation
+  useEffect(() => {
+    if (!open) return;
+    
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Find the closest element with data attributes (could be the clicked element or a parent)
+      const clickableElement = target.closest('[data-collection-id][data-item-id]') as HTMLElement;
+      
+      if (clickableElement) {
+        e.preventDefault();
+        e.stopPropagation();
+        const collectionId = parseInt(clickableElement.dataset.collectionId || '0');
+        const itemId = parseInt(clickableElement.dataset.itemId || '0');
+        if (collectionId && itemId) {
+          console.log('PagesLivePreview: Dispatching openItemDetail event:', { collectionId, itemId });
+          // Dispatch custom event
+          window.dispatchEvent(new CustomEvent('openItemDetail', {
+            detail: { collectionId, itemId }
+          }));
+        }
+      }
+    };
+
+    // Use event delegation on the document body
+    // This works even if elements are added dynamically
+    document.addEventListener('click', handleClick, true); // Use capture phase
+
+    return () => {
+      document.removeEventListener('click', handleClick, true);
+    };
+  }, [open, processedContent]);
+
   const devices = [
     { id: "desktop" as const, label: "Desktop", icon: Monitor },
     { id: "tablet" as const, label: "Tablet", icon: Tablet },
@@ -395,6 +511,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
   ];
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0 [&>button]:hidden">
         <DialogTitle className="sr-only">Live Preview</DialogTitle>
@@ -488,6 +605,51 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Item Detail Modal - Outside main dialog to avoid nesting */}
+    <Dialog open={showItemDetail} onOpenChange={setShowItemDetail}>
+      <DialogContent className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0 [&>button]:!hidden">
+        <DialogTitle className="sr-only">Item Detail</DialogTitle>
+        <DialogDescription className="sr-only">
+          Detailed view of collection item with page template
+        </DialogDescription>
+        
+        <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-200 bg-white shrink-0">
+          <h3 className="text-neutral-900">Item Detail</h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowItemDetail(false)}
+            className="h-9 w-9 p-0"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-auto bg-neutral-50">
+          {loadingItemDetail ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-neutral-500">Loading item detail...</p>
+            </div>
+          ) : itemDetailData ? (
+            <PublicPageTemplate
+              headerContent=""
+              bodyContent={itemDetailData.htmlContent}
+              footerContent=""
+              pageTitle="Item Detail"
+              deviceView="desktop"
+              customCss={itemDetailData.customCss}
+              customJs={itemDetailData.customJs}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-neutral-500">No item data available</p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  </>
   );
 }
 

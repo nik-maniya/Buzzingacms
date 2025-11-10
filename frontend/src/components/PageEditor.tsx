@@ -102,11 +102,28 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'openItemDetail') {
         const { collectionId, itemId } = event.data;
+        console.log('Received postMessage:', { collectionId, itemId });
         await openItemDetail(collectionId, itemId);
       }
     };
+    
+    // Also listen for custom events from Full Preview (direct rendering, not iframe)
+    const handleCustomEvent = async (event: CustomEvent) => {
+      console.log('Received custom event:', event.detail);
+      if (event.detail?.collectionId && event.detail?.itemId) {
+        await openItemDetail(event.detail.collectionId, event.detail.itemId);
+      }
+    };
+    
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    window.addEventListener('openItemDetail', handleCustomEvent as EventListener);
+    
+    console.log('Event listeners attached for item detail');
+    
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('openItemDetail', handleCustomEvent as EventListener);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load page data if editing existing page
@@ -389,16 +406,31 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
               // Use ONLY the template part (after placeholder), replacing field placeholders with item data
               let itemHtml = replaceFieldPlaceholders(template, enhancedItemData, fields);
               
-              // Make titles (h1-h6) clickable to show item detail
+              // Make titles (h1-h6) and links (a) clickable to show item detail
+              const collectionId = collection.id;
+              const itemId = item.id;
+              
+              // First, make headings clickable
               itemHtml = itemHtml.replace(
                 /<(h[1-6])([^>]*)>(.*?)<\/\1>/gi,
                 (match, tag, attrs, content) => {
-                  // Check if already has onclick
-                  if (attrs.includes('onclick')) return match;
-                  // Add onclick to open item detail
-                  const collectionId = collection.id;
-                  const itemId = item.id;
-                  return `<${tag}${attrs} onclick="window.parent.postMessage({type: 'openItemDetail', collectionId: ${collectionId}, itemId: ${itemId}}, '*')" style="cursor: pointer; text-decoration: underline;">${content}</${tag}>`;
+                  // Check if already has onclick or data attributes
+                  if (attrs.includes('onclick') || attrs.includes('data-collection-id')) return match;
+                  // Add data attributes and onclick that works in both iframe and direct rendering
+                  const safeOnclick = `(function(){try{if(window.parent!==window){window.parent.postMessage({type:'openItemDetail',collectionId:${collectionId},itemId:${itemId}},'*');}else{window.dispatchEvent(new CustomEvent('openItemDetail',{detail:{collectionId:${collectionId},itemId:${itemId}}}));}}catch(e){console.error(e);}})();`;
+                  return `<${tag}${attrs} data-collection-id="${collectionId}" data-item-id="${itemId}" onclick="${safeOnclick}" style="cursor: pointer; text-decoration: underline;">${content}</${tag}>`;
+                }
+              );
+              
+              // Also make links clickable (in case blog items are rendered as links)
+              itemHtml = itemHtml.replace(
+                /<a([^>]*)>(.*?)<\/a>/gi,
+                (match, attrs, content) => {
+                  // Check if already has onclick or data attributes, or if it's an external link
+                  if (attrs.includes('onclick') || attrs.includes('data-collection-id') || attrs.includes('href="http')) return match;
+                  // Add data attributes and onclick - event is automatically available
+                  const safeOnclick = `event.preventDefault();event.stopPropagation();try{if(window.parent!==window){window.parent.postMessage({type:'openItemDetail',collectionId:${collectionId},itemId:${itemId}},'*');}else{window.dispatchEvent(new CustomEvent('openItemDetail',{detail:{collectionId:${collectionId},itemId:${itemId}}}));}}catch(err){console.error(err);}return false;`;
+                  return `<a${attrs} data-collection-id="${collectionId}" data-item-id="${itemId}" onclick="${safeOnclick}" style="cursor: pointer;">${content}</a>`;
                 }
               );
               
@@ -753,9 +785,23 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         customJs={jsCode}
       />
 
+      {/* { Item Detail Modal} */}
+      {showItemDetail && (
+        <style>{`
+          [data-slot="dialog-content"] > button[class="absolute"][class="top-4"][class="right-4"],
+          [data-slot="dialog-content"] > button.absolute.top-4.right-4,
+          [data-slot="dialog-content"] button[class*="absolute"]:has(svg) {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+        `}</style>
+      )}
+
       {/* Item Detail Modal */}
       <Dialog open={showItemDetail} onOpenChange={setShowItemDetail}>
-        <DialogContent className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0">
+      <DialogContent className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0 [&>button]:!hidden">
           <DialogTitle className="sr-only">Item Detail</DialogTitle>
           <DialogDescription className="sr-only">
             Detailed view of collection item with page template

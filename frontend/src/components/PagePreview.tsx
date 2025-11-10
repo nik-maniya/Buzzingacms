@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Monitor, Tablet, Smartphone, ExternalLink, X } from "lucide-react";
@@ -39,6 +39,39 @@ export function PagePreview({
     { id: "tablet" as const, label: "Tablet", icon: Tablet },
     { id: "mobile" as const, label: "Mobile", icon: Smartphone },
   ];
+
+  // Attach click handlers to collection items using event delegation
+  useEffect(() => {
+    if (!open) return;
+    
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Find the closest element with data attributes (could be the clicked element or a parent)
+      const clickableElement = target.closest('[data-collection-id][data-item-id]') as HTMLElement;
+      
+      if (clickableElement) {
+        e.preventDefault();
+        e.stopPropagation();
+        const collectionId = parseInt(clickableElement.dataset.collectionId || '0');
+        const itemId = parseInt(clickableElement.dataset.itemId || '0');
+        if (collectionId && itemId) {
+          console.log('Dispatching openItemDetail event:', { collectionId, itemId });
+          // Dispatch custom event for PageEditor to handle
+          window.dispatchEvent(new CustomEvent('openItemDetail', {
+            detail: { collectionId, itemId }
+          }));
+        }
+      }
+    };
+
+    // Use event delegation on the document body or a container
+    // This works even if elements are added dynamically
+    document.addEventListener('click', handleClick, true); // Use capture phase
+
+    return () => {
+      document.removeEventListener('click', handleClick, true);
+    };
+  }, [open, pageBody]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
