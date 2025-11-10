@@ -32,13 +32,13 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
   const [previewHeaderHtml, setPreviewHeaderHtml] = useState<string>("");
   const [previewFooterHtml, setPreviewFooterHtml] = useState<string>("");
   const [collections, setCollections] = useState<any[]>([]);
-  const [showItemDetail, setShowItemDetail] = useState(false);
   const [itemDetailData, setItemDetailData] = useState<{
     htmlContent: string;
     customCss: string;
     customJs: string;
   } | null>(null);
   const [loadingItemDetail, setLoadingItemDetail] = useState(false);
+  const [viewingItemDetailInPreview, setViewingItemDetailInPreview] = useState(false);
 
   // Load collections with items
   useEffect(() => {
@@ -61,7 +61,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       .catch(() => {});
   }, []);
 
-  // Function to open item detail
+  // Function to open item detail (inline in preview tab, not in separate dialog)
   const openItemDetail = async (collectionId: number, itemId: number) => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -71,7 +71,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       : "http://localhost:5000";
 
     setLoadingItemDetail(true);
-    setShowItemDetail(true);
+    setViewingItemDetailInPreview(true);
 
     try {
       const response = await fetch(
@@ -87,15 +87,30 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         });
       } else {
         toast.error(res?.message || 'Failed to load item detail');
-        setShowItemDetail(false);
+        setViewingItemDetailInPreview(false);
       }
     } catch (error) {
       toast.error('Failed to load item detail');
-      setShowItemDetail(false);
+      setViewingItemDetailInPreview(false);
     } finally {
       setLoadingItemDetail(false);
     }
   };
+
+  // Function to go back to page preview
+  const goBackToPagePreview = () => {
+    setViewingItemDetailInPreview(false);
+    setItemDetailData(null);
+  };
+
+  // Reset item detail view when switching away from preview tab
+  useEffect(() => {
+    if (activeTab !== "preview") {
+      setViewingItemDetailInPreview(false);
+      setItemDetailData(null);
+      setLoadingItemDetail(false);
+    }
+  }, [activeTab]);
 
   // Listen for messages from iframe to open item detail
   useEffect(() => {
@@ -725,43 +740,82 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                     scrollbar-color: #d4d4d4 #f5f5f5;
                   }
                 `}</style>
-                <div className="mb-4 flex items-center justify-center gap-2">
-                  <Button
-                    variant={previewDevice === "desktop" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewDevice("desktop")}
-                    className={previewDevice === "desktop" ? "bg-neutral-900" : ""}
-                  >
-                    Desktop
-                  </Button>
-                  <Button
-                    variant={previewDevice === "tablet" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewDevice("tablet")}
-                    className={previewDevice === "tablet" ? "bg-neutral-900" : ""}
-                  >
-                    Tablet
-                  </Button>
-                  <Button
-                    variant={previewDevice === "mobile" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewDevice("mobile")}
-                    className={previewDevice === "mobile" ? "bg-neutral-900" : ""}
-                  >
-                    Mobile
-                  </Button>
-                </div>
+                {viewingItemDetailInPreview && (
+                  <div className="mb-4 flex items-center gap-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={goBackToPagePreview}
+                      className="text-neutral-600 hover:text-neutral-900"
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back to Preview
+                    </Button>
+                    <div className="h-6 w-px bg-neutral-200" />
+                    <h3 className="text-neutral-900">Item Detail</h3>
+                  </div>
+                )}
+                {!viewingItemDetailInPreview && (
+                  <div className="mb-4 flex items-center justify-center gap-2">
+                    <Button
+                      variant={previewDevice === "desktop" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewDevice("desktop")}
+                      className={previewDevice === "desktop" ? "bg-neutral-900" : ""}
+                    >
+                      Desktop
+                    </Button>
+                    <Button
+                      variant={previewDevice === "tablet" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewDevice("tablet")}
+                      className={previewDevice === "tablet" ? "bg-neutral-900" : ""}
+                    >
+                      Tablet
+                    </Button>
+                    <Button
+                      variant={previewDevice === "mobile" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewDevice("mobile")}
+                      className={previewDevice === "mobile" ? "bg-neutral-900" : ""}
+                    >
+                      Mobile
+                    </Button>
+                  </div>
+                )}
                 <div className="flex justify-center">
                   <div
                     className="bg-white border border-neutral-200 rounded-lg overflow-auto shadow-lg transition-all preview-scrollbar"
                     style={{ width: deviceSizes[previewDevice], minHeight: "600px", maxHeight: "calc(100vh - 300px)" }}
                   >
-                    <iframe
-                      title="Live Preview"
-                      style={{ width: "100%", height: "100%", border: 0 }}
-                      sandbox="allow-scripts allow-same-origin"
-                      srcDoc={previewSrcDoc}
-                    />
+                    {viewingItemDetailInPreview ? (
+                      loadingItemDetail ? (
+                        <div className="flex items-center justify-center h-full min-h-[600px]">
+                          <p className="text-neutral-500">Loading item detail...</p>
+                        </div>
+                      ) : itemDetailData ? (
+                        <PublicPageTemplate
+                          headerContent=""
+                          bodyContent={itemDetailData.htmlContent}
+                          footerContent=""
+                          pageTitle="Item Detail"
+                          deviceView={previewDevice}
+                          customCss={itemDetailData.customCss}
+                          customJs={itemDetailData.customJs}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full min-h-[600px]">
+                          <p className="text-neutral-500">No item data available</p>
+                        </div>
+                      )
+                    ) : (
+                      <iframe
+                        title="Live Preview"
+                        style={{ width: "100%", height: "100%", border: 0 }}
+                        sandbox="allow-scripts allow-same-origin"
+                        srcDoc={previewSrcDoc}
+                      />
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -785,63 +839,6 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         customJs={jsCode}
       />
 
-      {/* { Item Detail Modal} */}
-      {showItemDetail && (
-        <style>{`
-          [data-slot="dialog-content"] > button[class="absolute"][class="top-4"][class="right-4"],
-          [data-slot="dialog-content"] > button.absolute.top-4.right-4,
-          [data-slot="dialog-content"] button[class*="absolute"]:has(svg) {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-          }
-        `}</style>
-      )}
-
-      {/* Item Detail Modal */}
-      <Dialog open={showItemDetail} onOpenChange={setShowItemDetail}>
-      <DialogContent className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0 [&>button]:!hidden">
-          <DialogTitle className="sr-only">Item Detail</DialogTitle>
-          <DialogDescription className="sr-only">
-            Detailed view of collection item with page template
-          </DialogDescription>
-          
-          <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-200 bg-white shrink-0">
-            <h3 className="text-neutral-900">Item Detail</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowItemDetail(false)}
-              className="h-9 w-9 p-0"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-
-          <div className="flex-1 overflow-auto bg-neutral-50">
-            {loadingItemDetail ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-neutral-500">Loading item detail...</p>
-              </div>
-            ) : itemDetailData ? (
-              <PublicPageTemplate
-                headerContent=""
-                bodyContent={itemDetailData.htmlContent}
-                footerContent=""
-                pageTitle="Item Detail"
-                deviceView="desktop"
-                customCss={itemDetailData.customCss}
-                customJs={itemDetailData.customJs}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-neutral-500">No item data available</p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
