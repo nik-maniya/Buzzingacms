@@ -166,7 +166,7 @@ export const getPageTemplateById = async (req: AuthRequest, res: Response, next:
 export const updatePageTemplate = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const { name, description, htmlContent } = req.body;
+        const { name, description, htmlContent, customCss, customJs } = req.body;
 
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
@@ -201,6 +201,8 @@ export const updatePageTemplate = async (req: AuthRequest, res: Response, next: 
                 ...(name && { name }),
                 ...(description !== undefined && { description }),
                 ...(htmlContent !== undefined && { htmlContent }),
+                ...(customCss !== undefined && { customCss }),
+                ...(customJs !== undefined && { customJs }),
             },
             include: {
                 collection: {
