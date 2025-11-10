@@ -79,6 +79,15 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
     setItemDetailData(null);
   };
 
+  // Reset item detail view when preview dialog closes
+  useEffect(() => {
+    if (!open) {
+      setViewingItemDetail(false);
+      setItemDetailData(null);
+      setLoadingItemDetail(false);
+    }
+  }, [open]);
+
   // Listen for custom events to open item detail
   useEffect(() => {
     const handleCustomEvent = async (event: CustomEvent) => {
