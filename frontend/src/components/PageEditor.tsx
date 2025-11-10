@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { ArrowLeft, Eye, ExternalLink } from "lucide-react";
+import { ArrowLeft, Eye, ExternalLink, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -9,6 +9,8 @@ import { CodeEditor } from "./CodeEditor";
 import { MetadataPanel } from "./MetadataPanel";
 import { WysiwygEditor } from "./WysiwygEditor";
 import { PagePreview } from "./PagePreview";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "./ui/dialog";
+import { PublicPageTemplate } from "./PublicPageTemplate";
 import { toast } from "sonner";
 
 interface PageEditorProps {
@@ -30,6 +32,13 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
   const [previewHeaderHtml, setPreviewHeaderHtml] = useState<string>("");
   const [previewFooterHtml, setPreviewFooterHtml] = useState<string>("");
   const [collections, setCollections] = useState<any[]>([]);
+  const [showItemDetail, setShowItemDetail] = useState(false);
+  const [itemDetailData, setItemDetailData] = useState<{
+    htmlContent: string;
+    customCss: string;
+    customJs: string;
+  } | null>(null);
+  const [loadingItemDetail, setLoadingItemDetail] = useState(false);
 
   // Load collections with items
   useEffect(() => {
@@ -51,6 +60,54 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       })
       .catch(() => {});
   }, []);
+
+  // Function to open item detail
+  const openItemDetail = async (collectionId: number, itemId: number) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "http://localhost:5000";
+
+    setLoadingItemDetail(true);
+    setShowItemDetail(true);
+
+    try {
+      const response = await fetch(
+        `${apiBase}/api/page-templates/renderItem/${collectionId}/${itemId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const res = await response.json();
+      if (response.ok && res?.data) {
+        setItemDetailData({
+          htmlContent: res.data.htmlContent || '',
+          customCss: res.data.customCss || '',
+          customJs: res.data.customJs || '',
+        });
+      } else {
+        toast.error(res?.message || 'Failed to load item detail');
+        setShowItemDetail(false);
+      }
+    } catch (error) {
+      toast.error('Failed to load item detail');
+      setShowItemDetail(false);
+    } finally {
+      setLoadingItemDetail(false);
+    }
+  };
+
+  // Listen for messages from iframe to open item detail
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === 'openItemDetail') {
+        const { collectionId, itemId } = event.data;
+        await openItemDetail(collectionId, itemId);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load page data if editing existing page
   useEffect(() => {
@@ -331,6 +388,19 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
               
               // Use ONLY the template part (after placeholder), replacing field placeholders with item data
               let itemHtml = replaceFieldPlaceholders(template, enhancedItemData, fields);
+              
+              // Make titles (h1-h6) clickable to show item detail
+              itemHtml = itemHtml.replace(
+                /<(h[1-6])([^>]*)>(.*?)<\/\1>/gi,
+                (match, tag, attrs, content) => {
+                  // Check if already has onclick
+                  if (attrs.includes('onclick')) return match;
+                  // Add onclick to open item detail
+                  const collectionId = collection.id;
+                  const itemId = item.id;
+                  return `<${tag}${attrs} onclick="window.parent.postMessage({type: 'openItemDetail', collectionId: ${collectionId}, itemId: ${itemId}}, '*')" style="cursor: pointer; text-decoration: underline;">${content}</${tag}>`;
+                }
+              );
               
               // Add item-specific classes and data attributes for styling
               itemHtml = itemHtml.replace(
@@ -682,6 +752,50 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         customCss={cssCode}
         customJs={jsCode}
       />
+
+      {/* Item Detail Modal */}
+      <Dialog open={showItemDetail} onOpenChange={setShowItemDetail}>
+        <DialogContent className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0">
+          <DialogTitle className="sr-only">Item Detail</DialogTitle>
+          <DialogDescription className="sr-only">
+            Detailed view of collection item with page template
+          </DialogDescription>
+          
+          <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-200 bg-white shrink-0">
+            <h3 className="text-neutral-900">Item Detail</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowItemDetail(false)}
+              className="h-9 w-9 p-0"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-auto bg-neutral-50">
+            {loadingItemDetail ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-neutral-500">Loading item detail...</p>
+              </div>
+            ) : itemDetailData ? (
+              <PublicPageTemplate
+                headerContent=""
+                bodyContent={itemDetailData.htmlContent}
+                footerContent=""
+                pageTitle="Item Detail"
+                deviceView="desktop"
+                customCss={itemDetailData.customCss}
+                customJs={itemDetailData.customJs}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-neutral-500">No item data available</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

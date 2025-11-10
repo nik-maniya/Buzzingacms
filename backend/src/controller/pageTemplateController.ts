@@ -38,10 +38,10 @@ export const createPageTemplate = async (req: AuthRequest, res: Response, next: 
             data: {
                 collectionId: collectionIdInt,
                 htmlContent,
-                customCss,
-                customJs,
+                customCss: customCss || null,
+                customJs: customJs || null,
                 authorId: userIdInt,
-            },
+            } as any,
         });
         res.json({
             success: true,
@@ -370,7 +370,6 @@ export const renderTemplateWithItem = async (req: AuthRequest, res: Response, ne
             data: {
                 template: {
                     id: template.id,
-                    name: template.name,
                     htmlContent: template.htmlContent,
                 },
                 item: {
@@ -567,6 +566,8 @@ export const renderCollectionItem = async (req: AuthRequest, res: Response, next
                 itemId: item.id,
                 data: item.data,
                 htmlContent: renderedHtml,
+                customCss: (template as any).customCss || '',
+                customJs: (template as any).customJs || '',
             },
         });
     } catch (error) {
