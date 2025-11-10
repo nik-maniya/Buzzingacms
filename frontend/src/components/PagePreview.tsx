@@ -14,6 +14,7 @@ interface PagePreviewProps {
   footerContent?: string;
   customCss?: string;
   customJs?: string;
+  selectedCollectionFilters?: string[];
   collections?: any[];
 }
 
@@ -26,6 +27,7 @@ export function PagePreview({
   footerContent = "",
   customCss = "",
   customJs = "",
+  selectedCollectionFilters = [],
   collections = [],
 }: PagePreviewProps) {
   const [deviceView, setDeviceView] = useState<"desktop" | "tablet" | "mobile">(

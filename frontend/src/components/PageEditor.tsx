@@ -30,8 +30,9 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
   const [previewHeaderHtml, setPreviewHeaderHtml] = useState<string>("");
   const [previewFooterHtml, setPreviewFooterHtml] = useState<string>("");
   const [collections, setCollections] = useState<any[]>([]);
+  const [selectedCollectionFilters, setSelectedCollectionFilters] = useState<string[]>([]);
 
-  // Load first 3 collections with items and their templates
+  // Load collections with items and their templates
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -40,7 +41,6 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       ? (import.meta as any).env.VITE_API_URL
       : "http://localhost:5000";
 
-    // API returns first 3 collections (most recently updated)
     fetch(`${apiBase}/api/collections/with-items`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -279,8 +279,11 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       if (!html) return html;
       if (collections.length === 0) return html;
       
-      // Use all collections (no filtering)
+      // Filter collections based on selection
       let filteredCollections = collections;
+      if (selectedCollectionFilters.length > 0) {
+        filteredCollections = collections.filter((c) => selectedCollectionFilters.includes(c.slug));
+      }
       
       let processedHtml = html;
       
@@ -297,6 +300,11 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
           const slug = match[1].trim();
           const collection = filteredCollections.find((c) => c.slug === slug);
           
+          // If collection filter is active and this collection doesn't match, hide it
+          if (selectedCollectionFilters.length > 0 && !selectedCollectionFilters.includes(collection?.slug)) {
+            processedHtml = processedHtml.replace(fullMatch, '');
+            return;
+          }
           
           if (!collection || !collection.items || collection.items.length === 0) {
             processedHtml = processedHtml.replace(fullMatch, `<div style="padding: 1rem; background: #f5f5f5; border-radius: 4px; margin: 1rem 0;">
@@ -413,7 +421,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       
       return processedHtml;
     };
-  }, [collections]);
+  }, [collections, selectedCollectionFilters]);
 
   // Process content to replace placeholders
   const processedContent = useMemo(() => {
@@ -569,7 +577,29 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="content">Content</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="content">Content</Label>
+                      {collections.length > 0 && (
+                        <Select
+                          onValueChange={(value) => {
+                            const placeholder = `{{collection:${value}}}`;
+                            setContent((prev) => prev + `\n\n${placeholder}\n\n`);
+                            toast.success(`Collection placeholder inserted: ${placeholder}`);
+                          }}
+                        >
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Insert Collection" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {collections.map((collection) => (
+                              <SelectItem key={collection.id} value={collection.slug}>
+                                {collection.name} ({collection.items?.length || 0} items)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
                     <WysiwygEditor value={content} onChange={setContent} />
                     {collections.length > 0 && (
                       <div className="text-sm text-neutral-500 mt-2 space-y-1 p-3 bg-neutral-50 rounded border border-neutral-200">
@@ -636,6 +666,37 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                 `}</style>
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
+                    {collections.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedCollectionFilters([])}
+                        >
+                          All Collections
+                        </Button>
+                        {collections.map((collection) => {
+                          const isSelected = selectedCollectionFilters.includes(collection.slug);
+                          return (
+                            <Button
+                              key={collection.id}
+                              variant={isSelected ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedCollectionFilters(prev => prev.filter(s => s !== collection.slug));
+                                } else {
+                                  setSelectedCollectionFilters(prev => [...prev, collection.slug]);
+                                }
+                              }}
+                              className={isSelected ? "bg-yellow-400 text-neutral-900 hover:bg-yellow-500" : ""}
+                            >
+                              {collection.name}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-center gap-2">
                     <Button
@@ -696,6 +757,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         footerContent={previewFooterHtml}
         customCss={cssCode}
         customJs={jsCode}
+        selectedCollectionFilters={selectedCollectionFilters}
         collections={collections}
       />
     </div>

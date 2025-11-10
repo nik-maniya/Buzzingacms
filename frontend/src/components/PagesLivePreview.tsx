@@ -36,7 +36,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
     ? (import.meta as any).env.VITE_API_URL
     : "http://localhost:5000";
 
-  // Fetch first 3 collections for placeholder processing with their templates
+  // Fetch collections for placeholder processing with their templates
   useEffect(() => {
     if (!open) return;
     const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
@@ -45,7 +45,6 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
       return;
     }
 
-    // API returns first 3 collections (most recently updated)
     fetch(`${apiBase}/api/collections/with-items`, {
       headers: { Authorization: `Bearer ${token}` },
     })
