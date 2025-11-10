@@ -26,6 +26,8 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string>("");
+  const [previewCss, setPreviewCss] = useState<string>("");
+  const [previewJs, setPreviewJs] = useState<string>("");
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   const handlePreview = async (itemId: string | number) => {
@@ -33,12 +35,31 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
       setIsPreviewLoading(true);
       setIsPreviewOpen(true);
       setPreviewHtml("");
+      setPreviewCss("");
+      setPreviewJs("");
+      
+      // Fetch the rendered HTML
       const res = await pageTemplatesAPI.renderItem(collection.id, itemId);
       const html = res?.data?.data?.htmlContent || "";
       setPreviewHtml(html);
+      
+      // Fetch the template to get CSS and JS
+      try {
+        const templateRes = await pageTemplatesAPI.getAll(collection.id);
+        if (templateRes.data.success && templateRes.data.data && templateRes.data.data.length > 0) {
+          const template = templateRes.data.data[0];
+          setPreviewCss(template.customCss || "");
+          setPreviewJs(template.customJs || "");
+        }
+      } catch (templateErr) {
+        console.error("Error fetching template CSS/JS:", templateErr);
+        // Continue without CSS/JS if template fetch fails
+      }
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Failed to load preview");
       setPreviewHtml("");
+      setPreviewCss("");
+      setPreviewJs("");
     } finally {
       setIsPreviewLoading(false);
     }
@@ -278,7 +299,7 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
         </div>
       </div>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Preview Dialog */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="max-w-[900px] w-[calc(100%-2rem)] h-[80vh]">
           <DialogHeader>
@@ -292,11 +313,57 @@ export function CollectionItemsList({ collection, onEditItem }: CollectionItemsL
               <div className="p-6 text-neutral-500">Loading preview...</div>
             ) : (
               <div className="p-0">
-                <iframe
-                  title="preview"
-                  className="w-full h-[60vh] border-0"
-                  srcDoc={previewHtml}
-                />
+                {(() => {
+                  // Escape CSS and JS for safe injection
+                  const escapedCss = (previewCss || '').replace(/<\/style>/gi, '<\\/style>');
+                  const escapedJs = (previewJs || '').replace(/<\/script>/gi, '<\\/script>');
+                  
+                  // Escape HTML content for template literal
+                  const safeHtml = (previewHtml || '')
+                    .replace(/`/g, '\\`')
+                    .replace(/\$\{/g, '\\${');
+                  
+                  // Create complete HTML document with CSS and JS
+                  const fullHtmlDoc = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>${escapedCss}</style>
+  </head>
+  <body style="margin: 0; padding: 2rem;">
+    ${safeHtml}
+    <script>
+      (function() {
+        ${escapedJs}
+        
+        // Ensure DOMContentLoaded event fires for any listeners
+        if (document.readyState !== 'loading') {
+          setTimeout(function() {
+            var evt;
+            try {
+              evt = new Event('DOMContentLoaded', { bubbles: true, cancelable: true });
+            } catch(e) {
+              evt = document.createEvent('Event');
+              evt.initEvent('DOMContentLoaded', true, true);
+            }
+            document.dispatchEvent(evt);
+            window.dispatchEvent(evt);
+          }, 0);
+        }
+      })();
+    </script>
+  </body>
+</html>`;
+                  
+                  return (
+                    <iframe
+                      title="preview"
+                      className="w-full h-[60vh] border-0"
+                      srcDoc={fullHtmlDoc}
+                    />
+                  );
+                })()}
               </div>
             )}
           </div>
