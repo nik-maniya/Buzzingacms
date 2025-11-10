@@ -5,7 +5,7 @@ import { ApiError } from '../middleware/errorHandler.js';
 
 export const createPageTemplate = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try{
-        const { collectionId, htmlContent } = req.body;
+        const { collectionId, htmlContent, customCss, customJs } = req.body;
         if (!req.user) {
             throw new ApiError('User not authenticated', 401);
         }
@@ -38,6 +38,8 @@ export const createPageTemplate = async (req: AuthRequest, res: Response, next: 
             data: {
                 collectionId: collectionIdInt,
                 htmlContent,
+                customCss,
+                customJs,
                 authorId: userIdInt,
             },
         });
