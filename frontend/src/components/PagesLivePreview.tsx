@@ -2,7 +2,7 @@ import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { Monitor, Tablet, Smartphone, ExternalLink, X } from "lucide-react";
+import { Monitor, Tablet, Smartphone, ExternalLink, X, ArrowLeft } from "lucide-react";
 import { PublicPageTemplate } from "./PublicPageTemplate";
 import { cn } from "./ui/utils";
 
@@ -29,25 +29,25 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [collections, setCollections] = useState<any[]>([]);
-  const [showItemDetail, setShowItemDetail] = useState(false);
   const [itemDetailData, setItemDetailData] = useState<{
     htmlContent: string;
     customCss: string;
     customJs: string;
   } | null>(null);
   const [loadingItemDetail, setLoadingItemDetail] = useState(false);
+  const [viewingItemDetail, setViewingItemDetail] = useState(false);
 
   const apiBase = (import.meta as any).env?.VITE_API_URL
     ? (import.meta as any).env.VITE_API_URL
     : "http://localhost:5000";
 
-  // Function to open item detail
+  // Function to open item detail inline
   const openItemDetail = async (collectionId: number, itemId: number) => {
     const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
     if (!token) return;
 
     setLoadingItemDetail(true);
-    setShowItemDetail(true);
+    setViewingItemDetail(true);
 
     try {
       const response = await fetch(
@@ -63,14 +63,20 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
         });
       } else {
         console.error('Failed to load item detail:', res?.message || 'Unknown error');
-        setShowItemDetail(false);
+        setViewingItemDetail(false);
       }
     } catch (error) {
       console.error('Error loading item detail:', error);
-      setShowItemDetail(false);
+      setViewingItemDetail(false);
     } finally {
       setLoadingItemDetail(false);
     }
+  };
+
+  // Function to go back to page view
+  const goBackToPage = () => {
+    setViewingItemDetail(false);
+    setItemDetailData(null);
   };
 
   // Listen for custom events to open item detail
@@ -511,7 +517,6 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
   ];
 
   return (
-    <>
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0 [&>button]:hidden">
         <DialogTitle className="sr-only">Live Preview</DialogTitle>
@@ -520,48 +525,70 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
         </DialogDescription>
 
         <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-200 bg-white shrink-0">
-          <div>
-            <h3 className="text-neutral-900">Live Preview</h3>
-            <p className="text-sm text-neutral-500">
-              {selectedPage ? selectedPage.title : loading ? "Loading…" : "No pages"}
-            </p>
+          <div className="flex items-center gap-4">
+            {viewingItemDetail && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={goBackToPage}
+                  className="text-neutral-600 hover:text-neutral-900"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <div className="h-6 w-px bg-neutral-200" />
+              </>
+            )}
+            <div>
+              <h3 className="text-neutral-900">{viewingItemDetail ? "Item Detail" : "Live Preview"}</h3>
+              <p className="text-sm text-neutral-500">
+                {viewingItemDetail 
+                  ? "Collection item preview" 
+                  : selectedPage ? selectedPage.title : loading ? "Loading…" : "No pages"}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-1">
-              {devices.map((device) => {
-                const Icon = device.icon;
-                return (
-                  <button
-                    key={device.id}
-                    onClick={() => setDeviceView(device.id)}
-                    className={cn(
-                      "flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm",
-                      deviceView === device.id
-                        ? "bg-white text-neutral-900 shadow-sm"
-                        : "text-neutral-600 hover:text-neutral-900"
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{device.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {!viewingItemDetail && (
+              <>
+                <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-1">
+                  {devices.map((device) => {
+                    const Icon = device.icon;
+                    return (
+                      <button
+                        key={device.id}
+                        onClick={() => setDeviceView(device.id)}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm",
+                          deviceView === device.id
+                            ? "bg-white text-neutral-900 shadow-sm"
+                            : "text-neutral-600 hover:text-neutral-900"
+                        )}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="hidden sm:inline">{device.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => {
-                const href = selectedPage?.slug ? (selectedPage.slug.startsWith("/") ? selectedPage.slug : `/${selectedPage.slug}`) : "/";
-                window.open(href, "_blank");
-              }}
-              disabled={!selectedPage}
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span className="hidden sm:inline">Open in New Tab</span>
-            </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => {
+                    const href = selectedPage?.slug ? (selectedPage.slug.startsWith("/") ? selectedPage.slug : `/${selectedPage.slug}`) : "/";
+                    window.open(href, "_blank");
+                  }}
+                  disabled={!selectedPage}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span className="hidden sm:inline">Open in New Tab</span>
+                </Button>
+              </>
+            )}
 
             <Button
               variant="ghost"
@@ -583,7 +610,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
               deviceView === "mobile" && "w-[375px] shadow-2xl"
             )}
           >
-            <div className="flex-1 overflow-auto preview-scrollbar" onClick={handleHeaderClick}>
+            <div className="flex-1 overflow-auto preview-scrollbar" onClick={!viewingItemDetail ? handleHeaderClick : undefined}>
               <style>{`
                 .preview-scrollbar::-webkit-scrollbar { width: 10px; height: 10px; }
                 .preview-scrollbar::-webkit-scrollbar-track { background: #f5f5f5; border-radius: 5px; }
@@ -591,65 +618,42 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
                 .preview-scrollbar::-webkit-scrollbar-thumb:hover { background: #a3a3a3; }
                 .preview-scrollbar { scrollbar-width: thin; scrollbar-color: #d4d4d4 #f5f5f5; }
               `}</style>
-              <PublicPageTemplate
-                headerContent={headerContent}
-                bodyContent={processedContent}
-                footerContent={footerContent}
-                pageTitle={selectedPage?.title || ""}
-                deviceView={deviceView}
-                customCss={selectedPage?.customCss || ""}
-                customJs={selectedPage?.customJs || ""}
-              />
+              {viewingItemDetail ? (
+                loadingItemDetail ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-neutral-500">Loading item detail...</p>
+                  </div>
+                ) : itemDetailData ? (
+                  <PublicPageTemplate
+                    headerContent=""
+                    bodyContent={itemDetailData.htmlContent}
+                    footerContent=""
+                    pageTitle="Item Detail"
+                    deviceView={deviceView}
+                    customCss={itemDetailData.customCss}
+                    customJs={itemDetailData.customJs}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-neutral-500">No item data available</p>
+                  </div>
+                )
+              ) : (
+                <PublicPageTemplate
+                  headerContent={headerContent}
+                  bodyContent={processedContent}
+                  footerContent={footerContent}
+                  pageTitle={selectedPage?.title || ""}
+                  deviceView={deviceView}
+                  customCss={selectedPage?.customCss || ""}
+                  customJs={selectedPage?.customJs || ""}
+                />
+              )}
             </div>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-
-    {/* Item Detail Modal - Outside main dialog to avoid nesting */}
-    <Dialog open={showItemDetail} onOpenChange={setShowItemDetail}>
-      <DialogContent className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0 [&>button]:!hidden">
-        <DialogTitle className="sr-only">Item Detail</DialogTitle>
-        <DialogDescription className="sr-only">
-          Detailed view of collection item with page template
-        </DialogDescription>
-        
-        <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-200 bg-white shrink-0">
-          <h3 className="text-neutral-900">Item Detail</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowItemDetail(false)}
-            className="h-9 w-9 p-0"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-auto bg-neutral-50">
-          {loadingItemDetail ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-neutral-500">Loading item detail...</p>
-            </div>
-          ) : itemDetailData ? (
-            <PublicPageTemplate
-              headerContent=""
-              bodyContent={itemDetailData.htmlContent}
-              footerContent=""
-              pageTitle="Item Detail"
-              deviceView="desktop"
-              customCss={itemDetailData.customCss}
-              customJs={itemDetailData.customJs}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-neutral-500">No item data available</p>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  </>
   );
 }
 
