@@ -182,11 +182,12 @@ export function PublicPageTemplate({
       : "w-[375px]";
 
   // Scope user CSS to .cms-page automatically
+  // This includes page template CSS, page CSS, header CSS, and footer CSS
   const scopedCss = useMemo(() => {
     if (!mergedCss) return "";
     
-    // Automatically scope all CSS to .cms-page
-    // This ensures user CSS never affects the admin panel
+    // Always scope all CSS to .cms-page, regardless of skipGlobalCss
+    // This ensures user CSS (including page template CSS) never affects the admin panel
     return scopeCss(mergedCss, ".cms-page");
   }, [mergedCss]);
 
