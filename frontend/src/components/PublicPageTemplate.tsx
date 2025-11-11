@@ -8,6 +8,8 @@ interface PublicPageTemplateProps {
   deviceView?: "desktop" | "tablet" | "mobile";
   customCss?: string;
   customJs?: string;
+  skipGlobalCss?: boolean; // When true, skip global CSS to prevent conflicts
+  cssScopeClass?: string; // Optional class to scope CSS to
 }
 
 export function PublicPageTemplate({
@@ -18,6 +20,8 @@ export function PublicPageTemplate({
   deviceView = "desktop",
   customCss,
   customJs,
+  skipGlobalCss = false,
+  cssScopeClass,
 }: PublicPageTemplateProps) {
   const [globalHeaderHtml, setGlobalHeaderHtml] = useState<string>("");
   const [globalFooterHtml, setGlobalFooterHtml] = useState<string>("");
@@ -88,11 +92,52 @@ export function PublicPageTemplate({
   // Container to mount executable script (dangerouslySetInnerHTML scripts don't execute in React)
   const scriptMountRef = useRef<HTMLDivElement | null>(null);
 
+  // Helper function to scope CSS to a class
+  const scopeCss = (css: string, scopeClass: string): string => {
+    if (!css || !scopeClass) return css;
+    
+    // Simple approach: prepend scope class to each CSS rule
+    // This handles most common cases
+    return css.replace(/([^{}]+)\{/g, (match, selector) => {
+      // Skip if already scoped or is a special rule
+      if (selector.includes(scopeClass) || selector.trim().startsWith('@')) {
+        return match;
+      }
+      
+      // Scope the selector
+      const scopedSelector = selector.split(',').map(s => {
+        const trimmed = s.trim();
+        // Don't double-scope
+        if (trimmed.includes(scopeClass)) return trimmed;
+        // Handle pseudo-selectors and special cases
+        if (trimmed.startsWith(':') || trimmed.startsWith('@')) return trimmed;
+        return `${scopeClass} ${trimmed}`;
+      }).join(', ');
+      
+      return `${scopedSelector}{`;
+    });
+  };
+
   // Merge page and global CSS/JS for execution and styling
   const mergedCss = useMemo(() => {
-    const parts = [customCss || "", globalHeaderCss, globalFooterCss].filter(Boolean);
-    return parts.join("\n\n");
-  }, [customCss, globalHeaderCss, globalFooterCss]);
+    let css = "";
+    
+    if (skipGlobalCss) {
+      // Only use customCss, skip global CSS to prevent conflicts
+      css = (customCss || "").trim();
+    } else {
+      // Merge all CSS
+      const parts = [customCss || "", globalHeaderCss, globalFooterCss].filter(Boolean);
+      css = parts.join("\n\n");
+    }
+    
+    // Scope CSS if scope class is provided (but don't scope when skipGlobalCss is true to allow CSS to work normally)
+    if (cssScopeClass && css && !skipGlobalCss) {
+      css = scopeCss(css, cssScopeClass);
+    }
+    
+    return css.trim();
+  }, [customCss, globalHeaderCss, globalFooterCss, skipGlobalCss, cssScopeClass]);
 
   const mergedJs = useMemo(() => {
     const parts = [globalHeaderJs, globalFooterJs, customJs || ""].filter(Boolean);
@@ -139,13 +184,30 @@ export function PublicPageTemplate({
   return (
     <div className={`${containerWidth} mx-auto bg-white min-h-screen flex flex-col`}>
       {/* Custom CSS for preview/published rendering */}
-      {mergedCss ? (
+      {skipGlobalCss && mergedCss ? (
+        <>
+          {/* Reset any potential conflicts from parent styles */}
+          <style dangerouslySetInnerHTML={{ __html: `
+            /* Reset conflicting styles when viewing item details */
+            .item-detail-isolated * {
+              box-sizing: border-box;
+            }
+          ` }} />
+          {/* Item's custom CSS with higher specificity */}
+          <style dangerouslySetInnerHTML={{ __html: mergedCss }} />
+        </>
+      ) : mergedCss ? (
         <style dangerouslySetInnerHTML={{ __html: mergedCss }} />
       ) : null}
       {/* Header Section (no static styling) */}
-      {(globalHeaderHtml || headerContent) ? (
+      {!skipGlobalCss && (globalHeaderHtml || headerContent) ? (
         <div
           dangerouslySetInnerHTML={createMarkup(globalHeaderHtml || headerContent)}
+        />
+      ) : null}
+      {skipGlobalCss && headerContent ? (
+        <div
+          dangerouslySetInnerHTML={createMarkup(headerContent)}
         />
       ) : null}
 
@@ -155,7 +217,7 @@ export function PublicPageTemplate({
           {/* Page Body Content */}
           {bodyContent ? (
             <div
-              className="prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_h1]:text-neutral-900 [&_h2]:text-neutral-900 [&_h3]:text-neutral-800 [&_p]:text-neutral-700 [&_p]:leading-relaxed"
+              className={skipGlobalCss ? "" : "prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_h1]:text-neutral-900 [&_h2]:text-neutral-900 [&_h3]:text-neutral-800 [&_p]:text-neutral-700 [&_p]:leading-relaxed"}
               dangerouslySetInnerHTML={{ __html: ensureHtmlRendering(bodyContent) }}
             />
           ) : (
@@ -167,9 +229,14 @@ export function PublicPageTemplate({
       </main>
 
       {/* Footer Section (no static styling) */}
-      {(globalFooterHtml || footerContent) ? (
+      {!skipGlobalCss && (globalFooterHtml || footerContent) ? (
         <div
           dangerouslySetInnerHTML={createMarkup(globalFooterHtml || footerContent)}
+        />
+      ) : null}
+      {skipGlobalCss && footerContent ? (
+        <div
+          dangerouslySetInnerHTML={createMarkup(footerContent)}
         />
       ) : null}
       

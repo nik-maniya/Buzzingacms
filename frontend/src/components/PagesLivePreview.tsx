@@ -97,10 +97,17 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
       }
     };
     
+    // Listen for close item detail event
+    const handleCloseItemDetail = () => {
+      goBackToPage();
+    };
+    
     window.addEventListener('openItemDetail', handleCustomEvent as EventListener);
+    window.addEventListener('closeItemDetail', handleCloseItemDetail as EventListener);
     
     return () => {
       window.removeEventListener('openItemDetail', handleCustomEvent as EventListener);
+      window.removeEventListener('closeItemDetail', handleCloseItemDetail as EventListener);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -435,8 +442,19 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
   // Process the selected page's content
   const processedContent = useMemo(() => {
     if (!selectedPage?.contentHtml) return "";
-    return replaceCollectionPlaceholders(selectedPage.contentHtml);
-  }, [selectedPage?.contentHtml, replaceCollectionPlaceholders]);
+    let content = replaceCollectionPlaceholders(selectedPage.contentHtml);
+    
+    // If viewing item detail, inject it into the content while keeping the page structure
+    if (viewingItemDetail && itemDetailData) {
+      // Insert item detail at the beginning of the body content
+      const itemDetailHtml = itemDetailData.htmlContent || '';
+      // Wrap item detail in a container with a back button
+      const backButton = '<div style="margin-bottom: 2rem;"><button data-back-to-list="true" style="padding: 0.5rem 1rem; background: #f59e0b; color: white; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 1rem;">← Back to List</button></div>';
+      content = backButton + itemDetailHtml;
+    }
+    
+    return content;
+  }, [selectedPage?.contentHtml, replaceCollectionPlaceholders, viewingItemDetail, itemDetailData]);
 
   const headerContent = useMemo(() => {
     if (!pages.length) return "";
@@ -486,12 +504,22 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
     }
   };
 
-  // Attach click handlers to collection items using event delegation
+  // Attach click handlers to collection items and back button using event delegation
   useEffect(() => {
     if (!open) return;
     
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      
+      // Check if back button was clicked
+      const backButton = target.closest('[data-back-to-list]') as HTMLElement;
+      if (backButton) {
+        e.preventDefault();
+        e.stopPropagation();
+        goBackToPage();
+        return;
+      }
+      
       // Find the closest element with data attributes (could be the clicked element or a parent)
       const clickableElement = target.closest('[data-collection-id][data-item-id]') as HTMLElement;
       
@@ -517,7 +545,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
     return () => {
       document.removeEventListener('click', handleClick, true);
     };
-  }, [open, processedContent]);
+  }, [open, processedContent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const devices = [
     { id: "desktop" as const, label: "Desktop", icon: Monitor },
@@ -535,69 +563,49 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
 
         <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-200 bg-white shrink-0">
           <div className="flex items-center gap-4">
-            {viewingItemDetail && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={goBackToPage}
-                  className="text-neutral-600 hover:text-neutral-900"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-                <div className="h-6 w-px bg-neutral-200" />
-              </>
-            )}
             <div>
-              <h3 className="text-neutral-900">{viewingItemDetail ? "Item Detail" : "Live Preview"}</h3>
+              <h3 className="text-neutral-900">Live Preview</h3>
               <p className="text-sm text-neutral-500">
-                {viewingItemDetail 
-                  ? "Collection item preview" 
-                  : selectedPage ? selectedPage.title : loading ? "Loading…" : "No pages"}
+                {selectedPage ? selectedPage.title : loading ? "Loading…" : "No pages"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {!viewingItemDetail && (
-              <>
-                <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-1">
-                  {devices.map((device) => {
-                    const Icon = device.icon;
-                    return (
-                      <button
-                        key={device.id}
-                        onClick={() => setDeviceView(device.id)}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm",
-                          deviceView === device.id
-                            ? "bg-white text-neutral-900 shadow-sm"
-                            : "text-neutral-600 hover:text-neutral-900"
-                        )}
-                      >
-                        <Icon className="w-4 h-4" />
-                        <span className="hidden sm:inline">{device.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+            <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-1">
+              {devices.map((device) => {
+                const Icon = device.icon;
+                return (
+                  <button
+                    key={device.id}
+                    onClick={() => setDeviceView(device.id)}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm",
+                      deviceView === device.id
+                        ? "bg-white text-neutral-900 shadow-sm"
+                        : "text-neutral-600 hover:text-neutral-900"
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="hidden sm:inline">{device.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => {
-                    const href = selectedPage?.slug ? (selectedPage.slug.startsWith("/") ? selectedPage.slug : `/${selectedPage.slug}`) : "/";
-                    window.open(href, "_blank");
-                  }}
-                  disabled={!selectedPage}
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span className="hidden sm:inline">Open in New Tab</span>
-                </Button>
-              </>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => {
+                const href = selectedPage?.slug ? (selectedPage.slug.startsWith("/") ? selectedPage.slug : `/${selectedPage.slug}`) : "/";
+                window.open(href, "_blank");
+              }}
+              disabled={!selectedPage}
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span className="hidden sm:inline">Open in New Tab</span>
+            </Button>
 
             <Button
               variant="ghost"
@@ -619,7 +627,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
               deviceView === "mobile" && "w-[375px] shadow-2xl"
             )}
           >
-            <div className="flex-1 overflow-auto preview-scrollbar" onClick={!viewingItemDetail ? handleHeaderClick : undefined}>
+            <div className="flex-1 overflow-auto preview-scrollbar" onClick={handleHeaderClick}>
               <style>{`
                 .preview-scrollbar::-webkit-scrollbar { width: 10px; height: 10px; }
                 .preview-scrollbar::-webkit-scrollbar-track { background: #f5f5f5; border-radius: 5px; }
@@ -627,26 +635,10 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
                 .preview-scrollbar::-webkit-scrollbar-thumb:hover { background: #a3a3a3; }
                 .preview-scrollbar { scrollbar-width: thin; scrollbar-color: #d4d4d4 #f5f5f5; }
               `}</style>
-              {viewingItemDetail ? (
-                loadingItemDetail ? (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-neutral-500">Loading item detail...</p>
-                  </div>
-                ) : itemDetailData ? (
-                  <PublicPageTemplate
-                    headerContent=""
-                    bodyContent={itemDetailData.htmlContent}
-                    footerContent=""
-                    pageTitle="Item Detail"
-                    deviceView={deviceView}
-                    customCss={itemDetailData.customCss}
-                    customJs={itemDetailData.customJs}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-neutral-500">No item data available</p>
-                  </div>
-                )
+              {loadingItemDetail ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-neutral-500">Loading item detail...</p>
+                </div>
               ) : (
                 <PublicPageTemplate
                   headerContent={headerContent}
@@ -654,8 +646,12 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
                   footerContent={footerContent}
                   pageTitle={selectedPage?.title || ""}
                   deviceView={deviceView}
-                  customCss={selectedPage?.customCss || ""}
-                  customJs={selectedPage?.customJs || ""}
+                  customCss={viewingItemDetail && itemDetailData?.customCss 
+                    ? `${selectedPage?.customCss || ""}\n${itemDetailData.customCss}` 
+                    : selectedPage?.customCss || ""}
+                  customJs={viewingItemDetail && itemDetailData?.customJs
+                    ? `${selectedPage?.customJs || ""}\n${itemDetailData.customJs}`
+                    : selectedPage?.customJs || ""}
                 />
               )}
             </div>

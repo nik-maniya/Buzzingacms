@@ -517,6 +517,51 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     .replace(/`/g, '\\`')
     .replace(/\$\{/g, '\\${');
   
+  // Create iframe srcDoc for item detail to completely isolate CSS
+  const itemDetailSrcDoc = useMemo(() => {
+    if (!itemDetailData) return '';
+    
+    const itemEscapedCss = (itemDetailData.customCss || '').replace(/<\/style>/gi, '<\\/style>');
+    const itemEscapedJs = (itemDetailData.customJs || '').replace(/<\/script>/gi, '<\\/script>');
+    const itemSafeContent = (itemDetailData.htmlContent || '')
+      .replace(/`/g, '\\`')
+      .replace(/\$\{/g, '\\${');
+    
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>${itemEscapedCss}</style>
+  </head>
+  <body style="margin: 0; padding: 0;">
+    <div style="padding: 2rem; min-height: 100vh;">
+      ${itemSafeContent}
+    </div>
+    <script>
+      (function() {
+        ${itemEscapedJs}
+        
+        // Ensure DOMContentLoaded event fires for any listeners
+        if (document.readyState !== 'loading') {
+          setTimeout(function() {
+            var evt;
+            try {
+              evt = new Event('DOMContentLoaded', { bubbles: true, cancelable: true });
+            } catch(e) {
+              evt = document.createEvent('Event');
+              evt.initEvent('DOMContentLoaded', true, true);
+            }
+            document.dispatchEvent(evt);
+            window.dispatchEvent(evt);
+          }, 0);
+        }
+      })();
+    </script>
+  </body>
+</html>`;
+  }, [itemDetailData]);
+  
   const previewSrcDoc = `<!doctype html>
 <html>
   <head>
@@ -794,14 +839,11 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
                           <p className="text-neutral-500">Loading item detail...</p>
                         </div>
                       ) : itemDetailData ? (
-                        <PublicPageTemplate
-                          headerContent=""
-                          bodyContent={itemDetailData.htmlContent}
-                          footerContent=""
-                          pageTitle="Item Detail"
-                          deviceView={previewDevice}
-                          customCss={itemDetailData.customCss}
-                          customJs={itemDetailData.customJs}
+                        <iframe
+                          title="Item Detail Preview"
+                          style={{ width: "100%", height: "100%", border: 0 }}
+                          sandbox="allow-scripts allow-same-origin"
+                          srcDoc={itemDetailSrcDoc}
                         />
                       ) : (
                         <div className="flex items-center justify-center h-full min-h-[600px]">
