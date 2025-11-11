@@ -181,99 +181,70 @@ export function PublicPageTemplate({
       ? "w-[768px]"
       : "w-[375px]";
 
+  // Scope user CSS to .cms-page automatically
+  const scopedCss = useMemo(() => {
+    if (!mergedCss) return "";
+    
+    // Automatically scope all CSS to .cms-page
+    // This ensures user CSS never affects the admin panel
+    return scopeCss(mergedCss, ".cms-page");
+  }, [mergedCss]);
+
   return (
     <div className={`${containerWidth} mx-auto bg-white min-h-screen flex flex-col`}>
-      {/* Custom CSS for preview/published rendering */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        /* Constrain all images and logos in header to prevent expansion */
-        header img,
-        header [class*="logo"],
-        header [id*="logo"],
-        [class*="header"] img,
-        [id*="header"] img,
-        nav img,
-        nav [class*="logo"],
-        nav [id*="logo"] {
-          max-width: 100% !important;
-          width: auto !important;
-          height: auto !important;
-          display: block;
-          box-sizing: border-box !important;
-        }
-        header,
-        nav,
-        [class*="header"],
-        [id*="header"] {
-          max-width: 100% !important;
-          overflow: hidden !important;
-          box-sizing: border-box !important;
-        }
-        /* Constrain all content to prevent expansion */
-        * {
-          max-width: 100%;
-          box-sizing: border-box;
-        }
-      ` }} />
-      {skipGlobalCss && mergedCss ? (
-        <>
-          {/* Reset any potential conflicts from parent styles */}
-          <style dangerouslySetInnerHTML={{ __html: `
-            /* Reset conflicting styles when viewing item details */
-            .item-detail-isolated * {
-              box-sizing: border-box;
-            }
-          ` }} />
-          {/* Item's custom CSS with higher specificity */}
-          <style dangerouslySetInnerHTML={{ __html: mergedCss }} />
-        </>
-      ) : mergedCss ? (
-        <style dangerouslySetInnerHTML={{ __html: mergedCss }} />
-      ) : null}
-      {/* Header Section (no static styling) */}
-      {!skipGlobalCss && (globalHeaderHtml || headerContent) ? (
-        <div
-          style={{ maxWidth: "100%", overflow: "hidden" }}
-          dangerouslySetInnerHTML={createMarkup(globalHeaderHtml || headerContent)}
-        />
-      ) : null}
-      {skipGlobalCss && headerContent ? (
-        <div
-          style={{ maxWidth: "100%", overflow: "hidden" }}
-          dangerouslySetInnerHTML={createMarkup(headerContent)}
-        />
-      ) : null}
-
-      {/* Body Section */}
-      <main className="flex-1 w-full">
-        <article className="max-w-[900px] mx-auto px-6 py-12">
-          {/* Page Body Content */}
-          {bodyContent ? (
-            <div
-              className={skipGlobalCss ? "" : "prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_h1]:text-neutral-900 [&_h2]:text-neutral-900 [&_h3]:text-neutral-800 [&_p]:text-neutral-700 [&_p]:leading-relaxed"}
-              dangerouslySetInnerHTML={{ __html: ensureHtmlRendering(bodyContent) }}
-            />
-          ) : (
-            <div className="text-neutral-400 text-center py-12">
-              No page content
-            </div>
-          )}
-        </article>
-      </main>
-
-      {/* Footer Section (no static styling) */}
-      {!skipGlobalCss && (globalFooterHtml || footerContent) ? (
-        <div
-          dangerouslySetInnerHTML={createMarkup(globalFooterHtml || footerContent)}
-        />
-      ) : null}
-      {skipGlobalCss && footerContent ? (
-        <div
-          dangerouslySetInnerHTML={createMarkup(footerContent)}
-        />
+      {/* User's custom CSS - automatically scoped to .cms-page */}
+      {scopedCss ? (
+        <style dangerouslySetInnerHTML={{ __html: scopedCss }} />
       ) : null}
       
-      {/* Script mount point - custom JS will be injected here and executed */}
-      <div ref={scriptMountRef} />
+      {/* Automatically wrap all user content in .cms-page */}
+      <div className="cms-page">
+        {/* Header Section */}
+        {!skipGlobalCss && (globalHeaderHtml || headerContent) ? (
+          <div
+            style={{ maxWidth: "100%", overflow: "hidden" }}
+            dangerouslySetInnerHTML={createMarkup(globalHeaderHtml || headerContent)}
+          />
+        ) : null}
+        {skipGlobalCss && headerContent ? (
+          <div
+            style={{ maxWidth: "100%", overflow: "hidden" }}
+            dangerouslySetInnerHTML={createMarkup(headerContent)}
+          />
+        ) : null}
+
+        {/* Body Section */}
+        <main className="flex-1 w-full">
+          <article className="max-w-[900px] mx-auto px-6 py-12">
+            {/* Page Body Content */}
+            {bodyContent ? (
+              <div
+                className={skipGlobalCss ? "" : "prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_h1]:text-neutral-900 [&_h2]:text-neutral-900 [&_h3]:text-neutral-800 [&_p]:text-neutral-700 [&_p]:leading-relaxed"}
+                dangerouslySetInnerHTML={{ __html: ensureHtmlRendering(bodyContent) }}
+              />
+            ) : (
+              <div className="text-neutral-400 text-center py-12">
+                No page content
+              </div>
+            )}
+          </article>
+        </main>
+
+        {/* Footer Section */}
+        {!skipGlobalCss && (globalFooterHtml || footerContent) ? (
+          <div
+            dangerouslySetInnerHTML={createMarkup(globalFooterHtml || footerContent)}
+          />
+        ) : null}
+        {skipGlobalCss && footerContent ? (
+          <div
+            dangerouslySetInnerHTML={createMarkup(footerContent)}
+          />
+        ) : null}
+        
+        {/* Script mount point - custom JS will be injected here and executed */}
+        <div ref={scriptMountRef} />
+      </div>
     </div>
   );
 }

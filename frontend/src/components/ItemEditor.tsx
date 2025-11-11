@@ -508,48 +508,26 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                     }
                   >
                     <div className="p-8" style={{ maxWidth: "100%", overflow: "hidden" }}>
-                      <style>{`
-                        .preview-content img,
-                        .preview-content img[src*="logo"],
-                        .preview-content img[alt*="logo"],
-                        .preview-content img[alt*="Logo"],
-                        .preview-content header img,
-                        .preview-content .logo,
-                        .preview-content [class*="logo"],
-                        .preview-content [id*="logo"] {
-                          max-width: 100% !important;
-                          width: auto !important;
-                          height: auto !important;
-                          display: block;
-                          box-sizing: border-box;
-                        }
-                        .preview-content {
-                          overflow-wrap: break-word;
-                          word-wrap: break-word;
-                          max-width: 100%;
-                          box-sizing: border-box;
-                        }
-                        .preview-content * {
-                          max-width: 100%;
-                          box-sizing: border-box;
-                        }
-                        .preview-content header,
-                        .preview-content nav,
-                        .preview-content [class*="header"],
-                        .preview-content [id*="header"] {
-                          max-width: 100% !important;
-                          overflow: hidden !important;
-                        }
-                        .preview-content header img,
-                        .preview-content nav img {
-                          max-width: 100% !important;
-                          width: auto !important;
-                          height: auto !important;
-                        }
-                      `}</style>
+                      {/* Scope user CSS to .cms-page automatically */}
+                      {cssCode ? (
+                        <style dangerouslySetInnerHTML={{ __html: cssCode.replace(/([^{}]+)\{/g, (match, selector) => {
+                          if (selector.includes('.cms-page') || selector.trim().startsWith('@')) {
+                            return match;
+                          }
+                          const scopedSelector = selector.split(',').map(s => {
+                            const trimmed = s.trim();
+                            if (trimmed.includes('.cms-page') || trimmed.startsWith(':') || trimmed.startsWith('@')) {
+                              return trimmed;
+                            }
+                            return `.cms-page ${trimmed}`;
+                          }).join(', ');
+                          return `${scopedSelector}{`;
+                        }) }} />
+                      ) : null}
                       <h1 className="mb-4 text-neutral-900">{title || "Untitled Item"}</h1>
+                      {/* Automatically wrap user content in .cms-page */}
                       <div
-                        className="prose prose-neutral max-w-none preview-content"
+                        className="cms-page prose prose-neutral max-w-none"
                         style={{ maxWidth: "100%", overflow: "hidden" }}
                         dangerouslySetInnerHTML={{ __html: content }}
                       />
