@@ -10,6 +10,9 @@ interface PublicPageTemplateProps {
   customJs?: string;
   skipGlobalCss?: boolean; // When true, skip global CSS to prevent conflicts
   cssScopeClass?: string; // Optional class to scope CSS to
+  isPreviewMode?: boolean; // When true, enables client-side routing for preview
+  onNavigate?: (path: string) => void; // Callback for client-side navigation in preview mode
+  availablePages?: Array<{ slug: string; id: string }>; // Available pages for navigation (for preview mode)
 }
 
 export function PublicPageTemplate({
@@ -22,6 +25,9 @@ export function PublicPageTemplate({
   customJs,
   skipGlobalCss = false,
   cssScopeClass,
+  isPreviewMode = false,
+  onNavigate,
+  availablePages = [],
 }: PublicPageTemplateProps) {
   const [globalHeaderHtml, setGlobalHeaderHtml] = useState<string>("");
   const [globalFooterHtml, setGlobalFooterHtml] = useState<string>("");
@@ -190,6 +196,80 @@ export function PublicPageTemplate({
     return scopeCss(mergedCss, ".cms-page");
   }, [mergedCss]);
 
+  // Container ref for intercepting link clicks in preview mode
+  const contentContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Intercept link clicks for client-side routing in preview mode
+  useEffect(() => {
+    if (!isPreviewMode || !onNavigate || !contentContainerRef.current) return;
+
+    const container = contentContainerRef.current;
+    
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a[href]') as HTMLAnchorElement | null;
+      
+      if (!anchor) return;
+      
+      const href = anchor.getAttribute('href');
+      if (!href) return;
+
+      // Skip if it's an external link (http/https), mailto, tel, or anchor link
+      if (
+        href.startsWith('http://') ||
+        href.startsWith('https://') ||
+        href.startsWith('mailto:') ||
+        href.startsWith('tel:') ||
+        href.startsWith('#') ||
+        anchor.hasAttribute('target') && anchor.getAttribute('target') === '_blank'
+      ) {
+        // Allow external links to work normally
+        return;
+      }
+
+      // Check if this is a link to an available page
+      const normalizedHref = href.startsWith('/') ? href : `/${href}`;
+      const matchingPage = availablePages.find(
+        (p) => p.slug === normalizedHref || p.slug === href || p.id === href
+      );
+
+      if (matchingPage || href.startsWith('/')) {
+        // This is an internal link - prevent default and use client-side routing
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Extract the path (remove query params and hash)
+        // Handle both absolute and relative paths
+        let path = href;
+        try {
+          // Try to parse as URL (works for absolute paths)
+          const url = new URL(href, window.location.origin);
+          path = url.pathname;
+        } catch {
+          // If parsing fails, it's likely a relative path - use as-is
+          // Remove query params and hash manually
+          const queryIndex = path.indexOf('?');
+          const hashIndex = path.indexOf('#');
+          if (queryIndex !== -1) {
+            path = path.substring(0, queryIndex);
+          } else if (hashIndex !== -1) {
+            path = path.substring(0, hashIndex);
+          }
+        }
+        
+        // Call the navigation handler
+        onNavigate(path);
+      }
+    };
+
+    // Use event delegation on the container
+    container.addEventListener('click', handleLinkClick, true);
+
+    return () => {
+      container.removeEventListener('click', handleLinkClick, true);
+    };
+  }, [isPreviewMode, onNavigate, availablePages]);
+
   return (
     <div className={`${containerWidth} mx-auto bg-white min-h-screen flex flex-col`}>
       {/* User's custom CSS - automatically scoped to .cms-page */}
@@ -198,7 +278,7 @@ export function PublicPageTemplate({
       ) : null}
       
       {/* Automatically wrap all user content in .cms-page */}
-      <div className="cms-page">
+      <div className="cms-page" ref={contentContainerRef}>
         {/* Header Section */}
         {!skipGlobalCss && (globalHeaderHtml || headerContent) ? (
           <div

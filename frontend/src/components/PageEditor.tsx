@@ -874,6 +874,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
         open={showFullPreview}
         onClose={() => setShowFullPreview(false)}
         pageTitle={title}
+        pageSlug={slug}
         pageBody={processedContent}
         headerContent={previewHeaderHtml}
         footerContent={previewFooterHtml}

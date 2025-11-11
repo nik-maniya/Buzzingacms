@@ -16,6 +16,8 @@ interface PagePreviewProps {
   customJs?: string;
   selectedCollectionFilters?: string[];
   collections?: any[];
+  pageSlug?: string; // Optional page slug for "Open in New Tab" functionality
+  availablePages?: Array<{ slug: string; id: string }>; // Available pages for client-side routing
 }
 
 export function PagePreview({
@@ -29,6 +31,8 @@ export function PagePreview({
   customJs = "",
   selectedCollectionFilters = [],
   collections = [],
+  pageSlug,
+  availablePages = [],
 }: PagePreviewProps) {
   const [deviceView, setDeviceView] = useState<"desktop" | "tablet" | "mobile">(
     "desktop"
@@ -253,9 +257,22 @@ export function PagePreview({
               size="sm"
               className="gap-2"
               onClick={() => {
-                // In production, this would open the actual public URL
-                window.open("/preview/page-slug?token=demo", "_blank");
+                // Get frontend URL from env or use default
+                const frontendUrl = (import.meta as any).env?.VITE_FRONTEND_URL 
+                  ? (import.meta as any).env.VITE_FRONTEND_URL 
+                  : window.location.origin.includes('localhost') 
+                    ? 'http://localhost:3000' 
+                    : window.location.origin;
+                
+                // Build the full URL with page slug
+                const slug = pageSlug 
+                  ? (pageSlug.startsWith("/") ? pageSlug : `/${pageSlug}`)
+                  : "/";
+                
+                const fullUrl = `${frontendUrl}${slug}`;
+                window.open(fullUrl, "_blank");
               }}
+              disabled={!pageSlug}
             >
               <ExternalLink className="w-4 h-4" />
               <span className="hidden sm:inline">Open in New Tab</span>
@@ -323,6 +340,14 @@ export function PagePreview({
                   customJs={viewingItemDetail && itemDetailData?.customJs
                     ? `${customJs}\n${itemDetailData.customJs}`
                     : customJs}
+                  isPreviewMode={availablePages.length > 0}
+                  onNavigate={availablePages.length > 0 ? (path) => {
+                    // In PagePreview, we can't navigate to other pages since we only have one page
+                    // But we can still intercept links to prevent full page reloads
+                    // For now, we'll just log it - in a real scenario, you might want to show a message
+                    console.log('Navigation requested in preview:', path);
+                  } : undefined}
+                  availablePages={availablePages}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full">

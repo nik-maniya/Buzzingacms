@@ -605,8 +605,20 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
               size="sm"
               className="gap-2"
               onClick={() => {
-                const href = selectedPage?.slug ? (selectedPage.slug.startsWith("/") ? selectedPage.slug : `/${selectedPage.slug}`) : "/";
-                window.open(href, "_blank");
+                // Get frontend URL from env or use default
+                const frontendUrl = (import.meta as any).env?.VITE_FRONTEND_URL 
+                  ? (import.meta as any).env.VITE_FRONTEND_URL 
+                  : window.location.origin.includes('localhost') 
+                    ? 'http://localhost:3000' 
+                    : window.location.origin;
+                
+                // Build the full URL with page slug
+                const pageSlug = selectedPage?.slug 
+                  ? (selectedPage.slug.startsWith("/") ? selectedPage.slug : `/${selectedPage.slug}`)
+                  : "/";
+                
+                const fullUrl = `${frontendUrl}${pageSlug}`;
+                window.open(fullUrl, "_blank");
               }}
               disabled={!selectedPage}
             >
@@ -674,6 +686,29 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
                   customJs={viewingItemDetail && itemDetailData?.customJs
                     ? `${selectedPage?.customJs || ""}\n${itemDetailData.customJs}`
                     : selectedPage?.customJs || ""}
+                  isPreviewMode={true}
+                  onNavigate={(path) => {
+                    // Handle client-side navigation in preview
+                    // Extract slug from path (remove leading/trailing slashes)
+                    const normalizedPath = path.replace(/^\/+|\/+$/g, '');
+                    
+                    // Find matching page by slug
+                    const matchingPage = pages.find(
+                      (p) => {
+                        const pageSlug = p.slug.replace(/^\/+|\/+$/g, '');
+                        return pageSlug === normalizedPath || p.slug === path;
+                      }
+                    );
+                    
+                    if (matchingPage) {
+                      setSelectedSlug(matchingPage.slug.replace(/^\//, ""));
+                      setSelectedId(matchingPage.id);
+                      // Reset item detail view when navigating to a new page
+                      setViewingItemDetail(false);
+                      setItemDetailData(null);
+                    }
+                  }}
+                  availablePages={pages.map(p => ({ slug: p.slug, id: p.id }))}
                 />
               )}
             </div>
