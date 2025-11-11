@@ -123,7 +123,7 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
   }, [item]);
 
   const deviceSizes = {
-    desktop: "100%",
+    desktop: "calc(100% - 2rem)",
     tablet: "768px",
     mobile: "375px",
   };
@@ -234,9 +234,9 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white overflow-y-auto">
+    <div className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Header */}
-      <div className="border-b border-neutral-200 bg-white sticky top-0 z-10">
+      <div className="border-b border-neutral-200 bg-white sticky top-0 z-10 flex-shrink-0">
         <div className="px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
@@ -278,9 +278,9 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-y-auto">
+      <div className="flex-1 flex overflow-hidden min-h-0" style={{ minWidth: 0 }}>
         {/* Editor Area */}
-        <div className="flex-1 flex flex-col overflow-y-auto">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0" style={{ minWidth: 0, maxWidth: "calc(100% - 320px)" }}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
             {/* <div className="border-b border-neutral-200 px-8">
               <TabsList className="bg-transparent h-12 p-0 space-x-1">
@@ -312,7 +312,7 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
               </TabsList>
             </div> */}
 
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden min-h-0 min-w-0">
               <TabsContent value="content" className="h-full m-0 p-8 overflow-auto">
                 <div className="max-w-3xl space-y-6">
                   <div className="space-y-2">
@@ -469,8 +469,8 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                 <CodeEditor value={jsCode} onChange={setJsCode} language="javascript" />
               </TabsContent>
 
-              <TabsContent value="preview" className="h-full m-0 p-8 bg-neutral-50 overflow-auto">
-                <div className="mb-4 flex items-center justify-center gap-2">
+              <TabsContent value="preview" className="h-full m-0 p-8 bg-neutral-50 overflow-auto min-w-0">
+                <div className="mb-4 flex items-center justify-center gap-2 flex-shrink-0">
                   <Button
                     variant={previewDevice === "desktop" ? "default" : "outline"}
                     size="sm"
@@ -496,15 +496,61 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                     Mobile
                   </Button>
                 </div>
-                <div className="flex justify-center">
+                <div className="flex justify-center flex-shrink-0 w-full min-w-0">
                   <div
-                    className="bg-white border border-neutral-200 rounded-lg overflow-hidden shadow-lg transition-all"
-                    style={{ width: deviceSizes[previewDevice], minHeight: "600px" }}
+                    className={previewDevice === "desktop" 
+                      ? "bg-white border border-neutral-200 rounded-lg overflow-auto shadow-lg transition-all w-full max-w-full"
+                      : "bg-white border border-neutral-200 rounded-lg overflow-auto shadow-lg transition-all"
+                    }
+                    style={previewDevice === "desktop" 
+                      ? { minHeight: "600px", maxWidth: "100%" }
+                      : { width: deviceSizes[previewDevice], minHeight: "600px", maxWidth: "100%" }
+                    }
                   >
-                    <div className="p-8">
+                    <div className="p-8" style={{ maxWidth: "100%", overflow: "hidden" }}>
+                      <style>{`
+                        .preview-content img,
+                        .preview-content img[src*="logo"],
+                        .preview-content img[alt*="logo"],
+                        .preview-content img[alt*="Logo"],
+                        .preview-content header img,
+                        .preview-content .logo,
+                        .preview-content [class*="logo"],
+                        .preview-content [id*="logo"] {
+                          max-width: 100% !important;
+                          width: auto !important;
+                          height: auto !important;
+                          display: block;
+                          box-sizing: border-box;
+                        }
+                        .preview-content {
+                          overflow-wrap: break-word;
+                          word-wrap: break-word;
+                          max-width: 100%;
+                          box-sizing: border-box;
+                        }
+                        .preview-content * {
+                          max-width: 100%;
+                          box-sizing: border-box;
+                        }
+                        .preview-content header,
+                        .preview-content nav,
+                        .preview-content [class*="header"],
+                        .preview-content [id*="header"] {
+                          max-width: 100% !important;
+                          overflow: hidden !important;
+                        }
+                        .preview-content header img,
+                        .preview-content nav img {
+                          max-width: 100% !important;
+                          width: auto !important;
+                          height: auto !important;
+                        }
+                      `}</style>
                       <h1 className="mb-4 text-neutral-900">{title || "Untitled Item"}</h1>
                       <div
-                        className="prose prose-neutral max-w-none"
+                        className="prose prose-neutral max-w-none preview-content"
+                        style={{ maxWidth: "100%", overflow: "hidden" }}
                         dangerouslySetInnerHTML={{ __html: content }}
                       />
                     </div>
@@ -516,7 +562,9 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
         </div>
 
         {/* Right Sidebar - Metadata Panel */}
-        <ItemMetadataPanel item={item} />
+        <div className="flex-shrink-0" style={{ width: "320px", minWidth: "320px", maxWidth: "320px" }}>
+          <ItemMetadataPanel item={item} />
+        </div>
       </div>
     </div>
   );

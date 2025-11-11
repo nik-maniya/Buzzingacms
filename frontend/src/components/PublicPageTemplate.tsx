@@ -184,6 +184,36 @@ export function PublicPageTemplate({
   return (
     <div className={`${containerWidth} mx-auto bg-white min-h-screen flex flex-col`}>
       {/* Custom CSS for preview/published rendering */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* Constrain all images and logos in header to prevent expansion */
+        header img,
+        header [class*="logo"],
+        header [id*="logo"],
+        [class*="header"] img,
+        [id*="header"] img,
+        nav img,
+        nav [class*="logo"],
+        nav [id*="logo"] {
+          max-width: 100% !important;
+          width: auto !important;
+          height: auto !important;
+          display: block;
+          box-sizing: border-box !important;
+        }
+        header,
+        nav,
+        [class*="header"],
+        [id*="header"] {
+          max-width: 100% !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
+        }
+        /* Constrain all content to prevent expansion */
+        * {
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+      ` }} />
       {skipGlobalCss && mergedCss ? (
         <>
           {/* Reset any potential conflicts from parent styles */}
@@ -202,11 +232,13 @@ export function PublicPageTemplate({
       {/* Header Section (no static styling) */}
       {!skipGlobalCss && (globalHeaderHtml || headerContent) ? (
         <div
+          style={{ maxWidth: "100%", overflow: "hidden" }}
           dangerouslySetInnerHTML={createMarkup(globalHeaderHtml || headerContent)}
         />
       ) : null}
       {skipGlobalCss && headerContent ? (
         <div
+          style={{ maxWidth: "100%", overflow: "hidden" }}
           dangerouslySetInnerHTML={createMarkup(headerContent)}
         />
       ) : null}

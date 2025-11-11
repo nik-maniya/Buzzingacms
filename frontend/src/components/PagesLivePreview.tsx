@@ -555,7 +555,14 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0 [&>button]:hidden">
+      <DialogContent 
+        className="w-screen h-screen max-w-none p-0 gap-0 border-0 rounded-none inset-0 translate-x-0 translate-y-0 [&>button]:hidden"
+        style={{ 
+          position: "fixed",
+          zIndex: 9999,
+          isolation: "isolate"
+        }}
+      >
         <DialogTitle className="sr-only">Live Preview</DialogTitle>
         <DialogDescription className="sr-only">
           Live preview of your pages with a header navigation. Click names to switch.
@@ -618,7 +625,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden bg-neutral-50 flex items-center justify-center">
+        <div className="flex-1 overflow-hidden bg-neutral-50 flex items-center justify-center" style={{ minWidth: 0, maxWidth: "100%" }}>
           <div
             className={cn(
               "h-full bg-white transition-all duration-300 overflow-hidden flex flex-col",
@@ -626,14 +633,29 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
               deviceView === "tablet" && "w-[768px] shadow-2xl",
               deviceView === "mobile" && "w-[375px] shadow-2xl"
             )}
+            style={{ maxWidth: "100%" }}
           >
-            <div className="flex-1 overflow-auto preview-scrollbar" onClick={handleHeaderClick}>
+            <div className="flex-1 overflow-auto preview-scrollbar" onClick={handleHeaderClick} style={{ minWidth: 0, maxWidth: "100%" }}>
               <style>{`
                 .preview-scrollbar::-webkit-scrollbar { width: 10px; height: 10px; }
                 .preview-scrollbar::-webkit-scrollbar-track { background: #f5f5f5; border-radius: 5px; }
                 .preview-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 5px; }
                 .preview-scrollbar::-webkit-scrollbar-thumb:hover { background: #a3a3a3; }
                 .preview-scrollbar { scrollbar-width: thin; scrollbar-color: #d4d4d4 #f5f5f5; }
+                /* Constrain all content in preview to prevent expansion */
+                .preview-scrollbar * {
+                  max-width: 100%;
+                  box-sizing: border-box;
+                }
+                .preview-scrollbar img,
+                .preview-scrollbar [class*="logo"],
+                .preview-scrollbar [id*="logo"],
+                .preview-scrollbar header img,
+                .preview-scrollbar nav img {
+                  max-width: 100% !important;
+                  width: auto !important;
+                  height: auto !important;
+                }
               `}</style>
               {loadingItemDetail ? (
                 <div className="flex items-center justify-center h-full">
