@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ArrowLeft, Eye, ExternalLink, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -507,31 +507,8 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
   // Escape script tags in JS code
   const escapedJs = (jsCode || '').replace(/<\/script>/gi, '<\\/script>');
   
-  // Helper function to scope CSS to .cms-page
-  const scopeCssForIframe = useCallback((css: string): string => {
-    if (!css) return '';
-    return css.replace(/([^{}]+)\{/g, (match, selector) => {
-      // Skip if already scoped or is a special rule
-      if (selector.includes('.cms-page') || selector.trim().startsWith('@')) {
-        return match;
-      }
-      // Scope the selector
-      const scopedSelector = selector.split(',').map(s => {
-        const trimmed = s.trim();
-        // Don't double-scope
-        if (trimmed.includes('.cms-page')) return trimmed;
-        // Handle pseudo-selectors and special cases
-        if (trimmed.startsWith(':') || trimmed.startsWith('@')) return trimmed;
-        return `.cms-page ${trimmed}`;
-      }).join(', ');
-      return `${scopedSelector}{`;
-    });
-  }, []);
-
   // Escape CSS to prevent breaking style tag
   const escapedCss = (cssCode || '').replace(/<\/style>/gi, '<\\/style>');
-  // Scope CSS to .cms-page for iframe preview
-  const scopedCss = scopeCssForIframe(escapedCss);
   
   // For HTML content, we need to escape only template literal special characters
   // but NOT HTML tags - we want them to render as actual HTML
@@ -545,7 +522,6 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     if (!itemDetailData) return '';
     
     const itemEscapedCss = (itemDetailData.customCss || '').replace(/<\/style>/gi, '<\\/style>');
-    const itemScopedCss = scopeCssForIframe(itemEscapedCss);
     const itemEscapedJs = (itemDetailData.customJs || '').replace(/<\/script>/gi, '<\\/script>');
     const itemSafeContent = (itemDetailData.htmlContent || '')
       .replace(/`/g, '\\`')
@@ -556,10 +532,10 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>${itemScopedCss}</style>
+    <style>${itemEscapedCss}</style>
   </head>
   <body style="margin: 0; padding: 0;">
-    <div class="cms-page" style="padding: 2rem; min-height: 100vh;">
+    <div style="padding: 2rem; min-height: 100vh;">
       ${itemSafeContent}
     </div>
     <script>
@@ -584,17 +560,17 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     </script>
   </body>
 </html>`;
-  }, [itemDetailData, scopeCssForIframe]);
+  }, [itemDetailData]);
   
   const previewSrcDoc = `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>${scopedCss}</style>
+    <style>${escapedCss}</style>
   </head>
   <body>
-    <div class="cms-page" style="padding: 2rem">
+    <div style="padding: 2rem">
       <div class="prose" style="max-width:none;color:#171717">${safeContent}</div>
     </div>
     <script>
