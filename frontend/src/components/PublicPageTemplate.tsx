@@ -157,28 +157,127 @@ export function PublicPageTemplate({
     // Clear previous scripts
     scriptMountRef.current.innerHTML = "";
     
-    if (!mergedJs) return;
+    if (!mergedJs || !mergedJs.trim()) return;
 
-    // Create and append a real script element (this WILL execute)
-    const script = document.createElement("script");
-    script.type = "text/javascript";
-    script.text = mergedJs;
-    scriptMountRef.current.appendChild(script);
+    let timeoutId: NodeJS.Timeout | null = null;
+    let retryTimeoutId: NodeJS.Timeout | null = null;
+    let cancelled = false;
 
-    // Dispatch DOMContentLoaded event if document is already loaded
-    // This ensures event listeners in user's code will fire
-    if (document.readyState !== "loading") {
+    // Function to execute the script
+    const executeScript = () => {
+      if (cancelled || !scriptMountRef.current) return;
+      
       try {
-        const event = new Event("DOMContentLoaded", { bubbles: true });
-        document.dispatchEvent(event);
-      } catch (e) {
-        // Fallback for older browsers
-        const event = document.createEvent("Event");
-        event.initEvent("DOMContentLoaded", true, true);
-        document.dispatchEvent(event);
+        // Wrap user's script to ensure it runs after DOM is ready
+        // This handles cases where scripts try to access DOM elements immediately
+        const wrappedScript = `
+          (function() {
+            // Wait for content to be in DOM and ensure elements are available
+            function runScript() {
+              try {
+                ${mergedJs}
+              } catch (error) {
+                console.error("Error in custom JavaScript:", error);
+              }
+            }
+            
+            // Check if content container exists and has body content
+            const container = document.querySelector('.cms-page-body');
+            if (container && container.children.length > 0) {
+              // Content is ready, but wait one more frame to ensure all elements are rendered
+              requestAnimationFrame(() => {
+                setTimeout(runScript, 10);
+              });
+            } else {
+              // Wait a bit more for content to render
+              setTimeout(() => {
+                const retryContainer = document.querySelector('.cms-page-body');
+                if (retryContainer && retryContainer.children.length > 0) {
+                  requestAnimationFrame(() => {
+                    setTimeout(runScript, 10);
+                  });
+                } else {
+                  // Last resort - run anyway after delay
+                  setTimeout(runScript, 100);
+                }
+              }, 50);
+            }
+          })();
+        `;
+        
+        // Create and append a real script element (this WILL execute)
+        const script = document.createElement("script");
+        script.type = "text/javascript";
+        script.text = wrappedScript;
+        scriptMountRef.current.appendChild(script);
+
+        // Dispatch DOMContentLoaded event if document is already loaded
+        // This ensures event listeners in user's code will fire
+        if (document.readyState !== "loading") {
+          try {
+            const event = new Event("DOMContentLoaded", { bubbles: true });
+            document.dispatchEvent(event);
+            // Also dispatch on the container for scoped event listeners
+            if (contentContainerRef.current) {
+              contentContainerRef.current.dispatchEvent(new Event("DOMContentLoaded", { bubbles: true }));
+            }
+          } catch (e) {
+            // Fallback for older browsers
+            const event = document.createEvent("Event");
+            event.initEvent("DOMContentLoaded", true, true);
+            document.dispatchEvent(event);
+            if (contentContainerRef.current) {
+              const containerEvent = document.createEvent("Event");
+              containerEvent.initEvent("DOMContentLoaded", true, true);
+              contentContainerRef.current.dispatchEvent(containerEvent);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error executing custom JavaScript:", error);
       }
-    }
-  }, [mergedJs]);
+    };
+
+    // Wait for body content to be rendered before executing scripts
+    // Use requestAnimationFrame + setTimeout to ensure DOM is fully rendered
+    const frameId = requestAnimationFrame(() => {
+      if (cancelled) return;
+      
+      // Use setTimeout with a delay to ensure React has finished rendering
+      // This is especially important when navigating between pages in preview mode
+      timeoutId = setTimeout(() => {
+        if (cancelled || !scriptMountRef.current) return;
+        
+        // Check if content container exists and has content
+        // If content not ready, try again after a short delay
+        if (contentContainerRef.current) {
+          const hasContent = contentContainerRef.current.querySelector('.cms-page-body') !== null;
+          if (!hasContent) {
+            retryTimeoutId = setTimeout(() => {
+              if (!cancelled && scriptMountRef.current) {
+                executeScript();
+              }
+            }, 100);
+            return;
+          }
+        }
+        
+        // Execute script (even if contentContainerRef is null, script should still execute)
+        executeScript();
+      }, 100); // Delay to ensure DOM is ready, especially for preview mode
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frameId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId);
+      }
+    };
+  }, [mergedJs, bodyContent]); // Also depend on bodyContent to re-run when content changes
 
   const containerWidth =
     deviceView === "desktop"
@@ -187,14 +286,32 @@ export function PublicPageTemplate({
       ? "w-[768px]"
       : "w-[375px]";
 
-  // Scope user CSS to .cms-page automatically
+  // Scope user CSS to .cms-page-body automatically (not .cms-page to avoid affecting header/footer)
   const scopedCss = useMemo(() => {
-    if (!mergedCss) return "";
+    // Split CSS into parts that should affect header/footer vs body
+    // Scope all page custom CSS to .cms-page-body to prevent it from affecting header/footer
+    // Global header/footer CSS should not be scoped (they're already in their own containers)
     
-    // Automatically scope all CSS to .cms-page
-    // This ensures user CSS never affects the admin panel
-    return scopeCss(mergedCss, ".cms-page");
-  }, [mergedCss]);
+    // Only scope the customCss (page-specific CSS), not global header/footer CSS
+    let pageCss = customCss || "";
+    let globalCss = "";
+    
+    if (!skipGlobalCss) {
+      // Keep global header/footer CSS unscoped
+      const parts = [globalHeaderCss, globalFooterCss].filter(Boolean);
+      globalCss = parts.join("\n\n");
+    }
+    
+    // Scope page CSS to .cms-page-body
+    let scopedPageCss = "";
+    if (pageCss.trim()) {
+      scopedPageCss = scopeCss(pageCss, ".cms-page-body");
+    }
+    
+    // Combine: global CSS (unscoped) + scoped page CSS
+    const result = [globalCss, scopedPageCss].filter(Boolean).join("\n\n").trim();
+    return result;
+  }, [customCss, globalHeaderCss, globalFooterCss, skipGlobalCss]);
 
   // Container ref for intercepting link clicks in preview mode
   const contentContainerRef = useRef<HTMLDivElement | null>(null);
@@ -271,13 +388,13 @@ export function PublicPageTemplate({
   }, [isPreviewMode, onNavigate, availablePages]);
 
   return (
-    <div className={`${containerWidth} mx-auto bg-white min-h-screen flex flex-col`}>
-      {/* User's custom CSS - automatically scoped to .cms-page */}
+    <div className={`${containerWidth} mx-auto bg-white min-h-screen flex flex-col`} style={{ minHeight: "calc(100dvh - 371px)" }}>
+      {/* User's custom CSS - page CSS scoped to .cms-page-body, global CSS unscoped */}
       {scopedCss ? (
         <style dangerouslySetInnerHTML={{ __html: scopedCss }} />
       ) : null}
       
-      {/* Automatically wrap all user content in .cms-page */}
+      {/* Automatically wrap all user content in .cms-page */}  
       <div className="cms-page" ref={contentContainerRef}>
         {/* Header Section */}
         {!skipGlobalCss && (globalHeaderHtml || headerContent) ? (
@@ -294,20 +411,17 @@ export function PublicPageTemplate({
         ) : null}
 
         {/* Body Section */}
-        <main className="flex-1 w-full">
-          <article className="max-w-[900px] mx-auto px-6 py-12">
-            {/* Page Body Content */}
-            {bodyContent ? (
-              <div
-                className={skipGlobalCss ? "" : "prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_h1]:text-neutral-900 [&_h2]:text-neutral-900 [&_h3]:text-neutral-800 [&_p]:text-neutral-700 [&_p]:leading-relaxed"}
-                dangerouslySetInnerHTML={{ __html: ensureHtmlRendering(bodyContent) }}
-              />
-            ) : (
-              <div className="text-neutral-400 text-center py-12">
-                No page content
-              </div>
-            )}
-          </article>
+        <main className="flex-1 w-full cms-page-body">
+          {bodyContent ? (
+            <div
+              className={skipGlobalCss ? "" : "prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_h1]:text-neutral-900 [&_h2]:text-neutral-900 [&_h3]:text-neutral-800 [&_p]:text-neutral-700 [&_p]:leading-relaxed"}
+              dangerouslySetInnerHTML={{ __html: ensureHtmlRendering(bodyContent) }}
+            />
+          ) : (
+            <div className="text-neutral-400 text-center py-12">
+              No page content
+            </div>
+          )}
         </main>
 
         {/* Footer Section */}
