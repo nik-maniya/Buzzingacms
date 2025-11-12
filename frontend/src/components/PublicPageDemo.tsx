@@ -493,44 +493,44 @@ export function PublicPageDemo() {
             <p className="text-neutral-500">Select a page to preview</p>
           </div>
         ) : (
-          <div className="flex justify-center">
-            <div
-              className={cn(
-                "bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300",
-                deviceView === "desktop" && "w-full max-w-[1440px]",
-                deviceView === "tablet" && "w-[768px]",
-                deviceView === "mobile" && "w-[375px]"
-              )}
-            >
-              {/* Browser Chrome */}
-              <div className="h-10 bg-neutral-100 border-b border-neutral-200 flex items-center px-4 gap-2">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                  <div className="w-3 h-3 rounded-full bg-green-400" />
-                </div>
-                <div className="flex-1 mx-4">
-                  <div className="h-6 bg-white rounded border border-neutral-200 px-3 flex items-center">
-                    <span className="text-xs text-neutral-400">
+        <div className="flex justify-center">
+          <div
+            className={cn(
+              "bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300",
+              deviceView === "desktop" && "w-full max-w-[1440px]",
+              deviceView === "tablet" && "w-[768px]",
+              deviceView === "mobile" && "w-[375px]"
+            )}
+          >
+            {/* Browser Chrome */}
+            <div className="h-10 bg-neutral-100 border-b border-neutral-200 flex items-center px-4 gap-2">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-red-400" />
+                <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                <div className="w-3 h-3 rounded-full bg-green-400" />
+              </div>
+              <div className="flex-1 mx-4">
+                <div className="h-6 bg-white rounded border border-neutral-200 px-3 flex items-center">
+                  <span className="text-xs text-neutral-400">
                       {selectedPage.slug ? `https://yoursite.com${selectedPage.slug.startsWith("/") ? selectedPage.slug : `/${selectedPage.slug}`}` : "https://yoursite.com"}
-                    </span>
-                  </div>
+                  </span>
                 </div>
               </div>
+            </div>
 
-              {/* Page Content */}
-              <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
+            {/* Page Content */}
+            <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
                 {loadingItemDetail ? (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-neutral-500">Loading item detail...</p>
                   </div>
                 ) : (
-                  <PublicPageTemplate
+              <PublicPageTemplate
                     headerContent=""
                     bodyContent={processedContent}
                     footerContent=""
                     pageTitle={selectedPage.title}
-                    deviceView={deviceView}
+                deviceView={deviceView}
                     customCss={viewingItemDetail && itemDetailData?.customCss 
                       ? `${selectedPage.customCss || ""}\n${itemDetailData.customCss}` 
                       : selectedPage.customCss}
@@ -547,7 +547,7 @@ export function PublicPageDemo() {
           </div>
         )}
 
-        {/* Page Navigation */}
+        {/* Page Navigation
         {pages.length > 0 && (
           <div className="max-w-[1440px] mx-auto mt-8">
             <div className="bg-white border border-neutral-200 rounded-lg p-4">
@@ -579,10 +579,10 @@ export function PublicPageDemo() {
                     </button>
                   );
                 })}
-              </div>
             </div>
           </div>
-        )}
+        </div>
+        )} */}
 
         {/* Info Cards */}
         <div className="max-w-[1440px] mx-auto mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">

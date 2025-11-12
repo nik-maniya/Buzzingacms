@@ -10,7 +10,7 @@ interface PagePreviewProps {
   onClose: () => void;
   pageTitle: string;
   pageBody: string;
-  headerContent?: string;
+  headerContent?: string;   
   footerContent?: string;
   customCss?: string;
   customJs?: string;

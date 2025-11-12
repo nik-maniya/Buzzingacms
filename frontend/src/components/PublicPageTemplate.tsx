@@ -172,6 +172,44 @@ export function PublicPageTemplate({
         // This handles cases where scripts try to access DOM elements immediately
         const wrappedScript = `
           (function() {
+            // Helper to find the scrollable container (for preview mode)
+            // In public preview, content is inside a scrollable div, not the window
+            function findScrollContainer(element) {
+              if (!element) return window;
+              let parent = element.parentElement;
+              while (parent) {
+                const style = window.getComputedStyle(parent);
+                if (style.overflow === 'auto' || style.overflowY === 'auto' || style.overflow === 'scroll' || style.overflowY === 'scroll') {
+                  return parent;
+                }
+                parent = parent.parentElement;
+              }
+              return window;
+            }
+            
+            // Override window.scrollTo to work with scrollable containers in preview mode
+            const originalScrollTo = window.scrollTo;
+            window.scrollTo = function(options) {
+              if (typeof options === 'object' && options.top !== undefined) {
+                // Try to find scrollable container
+                const pageBody = document.querySelector('.cms-page-body');
+                if (pageBody) {
+                  const scrollContainer = findScrollContainer(pageBody);
+                  if (scrollContainer !== window) {
+                    // Scroll the container instead of window
+                    scrollContainer.scrollTo({
+                      top: options.top,
+                      left: options.left || 0,
+                      behavior: options.behavior || 'auto'
+                    });
+                    return;
+                  }
+                }
+              }
+              // Fallback to original scrollTo
+              return originalScrollTo.apply(window, arguments);
+            };
+            
             // Wait for content to be in DOM and ensure elements are available
             function runScript() {
               try {
@@ -414,7 +452,7 @@ export function PublicPageTemplate({
         <main className="flex-1 w-full cms-page-body">
           {bodyContent ? (
             <div
-              className={skipGlobalCss ? "" : "prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_h1]:text-neutral-900 [&_h2]:text-neutral-900 [&_h3]:text-neutral-800 [&_p]:text-neutral-700 [&_p]:leading-relaxed"}
+              className={skipGlobalCss ? "" : "prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_p]:leading-relaxed"}
               dangerouslySetInnerHTML={{ __html: ensureHtmlRendering(bodyContent) }}
             />
           ) : (
