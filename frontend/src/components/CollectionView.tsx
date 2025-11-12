@@ -29,10 +29,8 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
   const codeEditorRef = useRef<CodeEditorRef>(null);
   const [templateCss, setTemplateCss] = useState<string>("");
-  const [templateJs, setTemplateJs] = useState<string>("");
-  const [templateTab, setTemplateTab] = useState<"html" | "css" | "js">("html");
+  const [templateTab, setTemplateTab] = useState<"html" | "css">("html");
   const cssEditorRef = useRef<CodeEditorRef>(null);
-  const jsEditorRef = useRef<CodeEditorRef>(null);
 
   // HTML tags list
   const htmlTags = [
@@ -118,30 +116,26 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
           
           if (templateRes.data.success && templateRes.data.data) {
             const templateData = templateRes.data.data;
-            // Use customCss and customJs from API if available, otherwise parse from htmlContent
-            if (templateData.customCss !== undefined || templateData.customJs !== undefined) {
+            // Use customCss from API if available, otherwise parse from htmlContent
+            if (templateData.customCss !== undefined) {
               // Use separate fields from database
               setTemplateHtml(templateData.htmlContent || "");
               setTemplateCss(templateData.customCss || "");
-              setTemplateJs(templateData.customJs || "");
             } else {
               // Fallback: parse from htmlContent for backward compatibility
               const parsed = parseTemplateContent(templateData.htmlContent || "");
               setTemplateHtml(parsed.html);
               setTemplateCss(parsed.css);
-              setTemplateJs(parsed.js);
             }
           } else {
             // Fallback to data from getAll if getById fails
-            if (template.customCss !== undefined || template.customJs !== undefined) {
+            if (template.customCss !== undefined) {
               setTemplateHtml(template.htmlContent || "");
               setTemplateCss(template.customCss || "");
-              setTemplateJs(template.customJs || "");
             } else {
               const parsed = parseTemplateContent(template.htmlContent || "");
               setTemplateHtml(parsed.html);
               setTemplateCss(parsed.css);
-              setTemplateJs(parsed.js);
             }
           }
         }
@@ -193,10 +187,9 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
       
       const html = templateHtml?.trim() || "";
       const css = templateCss?.trim() || "";
-      const js = templateJs?.trim() || "";
       
       // At least one field should have content
-      if (!html && !css && !js) {
+      if (!html && !css) {
         toast.error("Please add content before saving the template.");
         setIsSavingTemplate(false);
         return;
@@ -206,7 +199,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
       const templateData = {
         htmlContent: html,
         customCss: css || null,
-        customJs: js || null,
+        customJs: null,
       };
       
       if (templateId) {
@@ -245,7 +238,6 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
       // Clear local state
       setTemplateHtml("");
       setTemplateCss("");
-      setTemplateJs("");
       setTemplateId(null);
       
       // Also clear localStorage
@@ -258,7 +250,6 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
       // Still clear local state even if API call fails
       setTemplateHtml("");
       setTemplateCss("");
-      setTemplateJs("");
       setTemplateId(null);
     } finally {
       setIsSavingTemplate(false);
@@ -286,12 +277,6 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
     }
   };
 
-  const handleInsertJsTag = (tag: string) => {
-    if (jsEditorRef.current) {
-      jsEditorRef.current.insertText(tag);
-      toast.success("JavaScript inserted");
-    }
-  };
 
   return (
     <div className="flex-1 flex flex-col bg-white overflow-y-auto">
@@ -389,7 +374,7 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 w-full space-y-4">
-                    <Tabs value={templateTab} onValueChange={(v) => setTemplateTab(v as "html" | "css" | "js")} className="w-full">
+                    <Tabs value={templateTab} onValueChange={(v) => setTemplateTab(v as "html" | "css")} className="w-full">
                       <TabsList className="bg-transparent border-b border-neutral-200 rounded-none p-0 h-auto">
                         <TabsTrigger
                           value="html"
@@ -402,12 +387,6 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
                           className="data-[state=active]:bg-transparent data-[state=active]:text-neutral-900 data-[state=active]:border-b-2 data-[state=active]:border-yellow-400 rounded-none px-4"
                         >
                           CSS
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="js"
-                          className="data-[state=active]:bg-transparent data-[state=active]:text-neutral-900 data-[state=active]:border-b-2 data-[state=active]:border-yellow-400 rounded-none px-4"
-                        >
-                          JavaScript
                         </TabsTrigger>
                       </TabsList>
                       
@@ -434,19 +413,6 @@ export function CollectionView({ collection, onBack, onEditItem, initialTab }: C
                         )}
                         <p className="text-sm text-neutral-500 mt-2">
                           Add custom CSS styles for your template. These will be wrapped in a &lt;style&gt; tag when rendered.
-                        </p>
-                      </TabsContent>
-                      
-                      <TabsContent value="js" className="mt-4">
-                        {isLoadingTemplate ? (
-                          <div className="flex items-center justify-center h-[500px]">
-                            <p className="text-neutral-500">Loading template...</p>
-                          </div>
-                        ) : (
-                          <CodeEditor ref={jsEditorRef} value={templateJs} onChange={setTemplateJs} language="javascript" height={500} />
-                        )}
-                        <p className="text-sm text-neutral-500 mt-2">
-                          Add custom JavaScript for your template. These will be wrapped in a &lt;script&gt; tag when rendered.
                         </p>
                       </TabsContent>
                     </Tabs>
