@@ -159,14 +159,12 @@ export const pageTemplatesAPI = {
 
 // Domain API
 export const domainAPI = {
+  // Get current user's domain
+  get: () => api.get('/domain'),
+  
   // Upsert domain (create or update)
   upsert: (domainData: { domainName: string }) =>
     api.post('/domain/upsertDomain', domainData),
-  
-  // Note: The following endpoints need to be implemented in the backend
-  // getAll: () => api.get('/domain'),
-  // getById: (id: string) => api.get(`/domain/${id}`),
-  // delete: (id: string) => api.delete(`/domain/${id}`),
 };
 
 // DNS Records API

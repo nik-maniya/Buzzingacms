@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Copy, CheckCircle2, AlertTriangle, ExternalLink, Plus, Trash2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Copy, CheckCircle2, AlertTriangle, ExternalLink, Plus, Trash2, Edit } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
@@ -70,6 +70,7 @@ export function DomainSettings() {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [dnsRecords, setDnsRecords] = useState<DNSRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   // Helper function to convert API response to Domain interface
   const mapApiDomainToDomain = (apiDomain: DomainApiResponse): Domain => {
@@ -105,8 +106,49 @@ export function DomainSettings() {
     };
   };
 
+  // Fetch domain on component mount
+  useEffect(() => {
+    const fetchDomain = async () => {
+      setIsFetching(true);
+      try {
+        const response = await domainAPI.get();
+        
+        if (response.data.success) {
+          const apiDomain = response.data.data as DomainApiResponse | null;
+          
+          if (apiDomain) {
+            const domain = mapApiDomainToDomain(apiDomain);
+            setDomains([domain]);
+            
+            // Update DNS records if they were included in the response
+            if (apiDomain.dnsRecords && apiDomain.dnsRecords.length > 0) {
+              const mappedRecords = apiDomain.dnsRecords.map(mapApiDnsRecordToDnsRecord);
+              setDnsRecords(mappedRecords);
+            } else {
+              setDnsRecords([]);
+            }
+          } else {
+            // No domain found
+            setDomains([]);
+            setDnsRecords([]);
+          }
+        }
+      } catch (error: any) {
+        console.error("Error fetching domain:", error);
+        // Don't show error toast on initial load - just show empty state
+        setDomains([]);
+        setDnsRecords([]);
+      } finally {
+        setIsFetching(false);
+      }
+    };
+
+    fetchDomain();
+  }, []);
+
   // Dialog states
   const [isAddDomainOpen, setIsAddDomainOpen] = useState(false);
+  const [isEditDomainOpen, setIsEditDomainOpen] = useState(false);
   const [isAddRecordOpen, setIsAddRecordOpen] = useState(false);
 
   // Form states for adding domain
@@ -182,6 +224,27 @@ export function DomainSettings() {
 
         setDomainForm({ name: "" });
         setIsAddDomainOpen(false);
+        setIsEditDomainOpen(false);
+        
+        // Refresh domain data after adding/updating
+        try {
+          const getResponse = await domainAPI.get();
+          if (getResponse.data.success) {
+            const apiDomain = getResponse.data.data as DomainApiResponse | null;
+            if (apiDomain) {
+              const domain = mapApiDomainToDomain(apiDomain);
+              setDomains([domain]);
+              if (apiDomain.dnsRecords && apiDomain.dnsRecords.length > 0) {
+                const mappedRecords = apiDomain.dnsRecords.map(mapApiDnsRecordToDnsRecord);
+                setDnsRecords(mappedRecords);
+              } else {
+                setDnsRecords([]);
+              }
+            }
+          }
+        } catch (refreshError) {
+          console.error("Error refreshing domain:", refreshError);
+        }
       } else {
         toast.error(response.data.message || "Failed to add domain");
       }
@@ -331,8 +394,15 @@ export function DomainSettings() {
       {/* Content */}
       <div className="flex-1 overflow-auto">
         <div className="max-w-6xl mx-auto p-8 space-y-6">
+          {/* Loading State */}
+          {isFetching && (
+            <div className="bg-white rounded-lg border border-neutral-200 p-12 text-center">
+              <p className="text-neutral-600">Loading domain information...</p>
+            </div>
+          )}
+
           {/* Empty State - No Domain */}
-          {!currentDomain && (
+          {!isFetching && !currentDomain && (
             <div className="bg-white rounded-lg border border-neutral-200 p-12 text-center">
               <div className="max-w-md mx-auto">
                 <h3 className="text-lg font-semibold text-neutral-900 mb-2">No Domain Configured</h3>
@@ -348,7 +418,7 @@ export function DomainSettings() {
           )}
 
           {/* Domain Overview Card */}
-          {currentDomain && (
+          {!isFetching && currentDomain && (
             <div className="bg-white rounded-lg border border-neutral-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
@@ -387,6 +457,17 @@ export function DomainSettings() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => {
+                    setDomainForm({ name: currentDomain.name });
+                    setIsEditDomainOpen(true);
+                  }}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Domain
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => toast.info("SSL recheck functionality coming soon")}
                 >
                   Recheck SSL
@@ -404,8 +485,9 @@ export function DomainSettings() {
           )}
 
           {/* DNS Records Table */}
-          <div>
-            <h3 className="text-neutral-900 mb-4">DNS Records</h3>
+          {!isFetching && currentDomain && (
+            <div>
+              <h3 className="text-neutral-900 mb-4">DNS Records</h3>
             {filteredDnsRecords.length === 0 ? (
               <div className="bg-white rounded-lg border border-neutral-200 p-8 text-center">
                 <p className="text-neutral-600">No DNS records found. Add your first record to get started.</p>
@@ -495,9 +577,11 @@ export function DomainSettings() {
               </table>
             </div>
             )}
-          </div>
+            </div>
+          )}
 
           {/* Custom Domain Instructions */}
+          {!isFetching && currentDomain && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h4 className="text-sm text-blue-900 mb-3">Custom Domain Instructions</h4>
             <div className="space-y-2 text-sm text-blue-900">
@@ -512,13 +596,14 @@ export function DomainSettings() {
               </p>
             </div>
           </div>
+          )}
 
         </div>
       </div>
 
       {/* Add Domain Dialog */}
       <Dialog open={isAddDomainOpen} onOpenChange={setIsAddDomainOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px]" style={{ width: "500px" }}>
           <DialogHeader>
             <DialogTitle>Add New Domain</DialogTitle>
             <DialogDescription>
@@ -561,9 +646,54 @@ export function DomainSettings() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Domain Dialog */}
+      <Dialog open={isEditDomainOpen} onOpenChange={setIsEditDomainOpen}>
+        <DialogContent className="sm:max-w-[500px]" style={{ width: "500px" }}>
+          <DialogHeader>
+            <DialogTitle>Edit Domain</DialogTitle>
+            <DialogDescription>
+              Update your domain name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-domain-name">Domain Name</Label>
+              <Input
+                id="edit-domain-name"
+                placeholder="example.com"
+                value={domainForm.name}
+                onChange={(e) => setDomainForm({ name: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleAddDomain();
+                  }
+                }}
+              />
+              <p className="text-xs text-neutral-500">
+                Enter the domain without http:// or https://
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditDomainOpen(false);
+                setDomainForm({ name: "" });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddDomain} disabled={isLoading}>
+              {isLoading ? "Updating..." : "Update Domain"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Add DNS Record Dialog */}
       <Dialog open={isAddRecordOpen} onOpenChange={setIsAddRecordOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px]" style={{ width: "600px" }}>
           <DialogHeader>
             <DialogTitle>Add DNS Record</DialogTitle>
             <DialogDescription>
