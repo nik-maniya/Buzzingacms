@@ -210,3 +210,49 @@ export const createDNSRecord = async (req: AuthRequest, res: Response, next: Nex
         next(error);
     }
 }
+
+export const updateDNSRecord = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const { type, name, value, ttl } = req.body;
+
+        const recordId = parseInt(id, 10);
+        if (isNaN(recordId)) {
+            throw new ApiError('Invalid record ID', 400);
+        }
+
+        const existingRecord = await prisma.dnsRecord.findUnique({
+            where: { id: recordId },
+        });
+
+        if (!existingRecord) {
+            throw new ApiError('DNS record not found', 404);
+        }
+
+        if (ttl !==undefined && (ttl < 60 || ttl > 86400)) {
+            throw new ApiError('TTL must be between 60 and 86400 seconds', 400);
+        }
+
+        const updatedRecord = await prisma.dnsRecord.update({
+            where: { id: recordId },
+            data: {
+                ...(type && { type: type as any }),
+                ...(name !== undefined && { name }),
+                ...(value !== undefined && { value }),
+                ...(ttl !== undefined && { ttl }),
+            },
+            include: {
+                domain: true,
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'DNS record updated successfully',
+            data: updatedRecord,
+        });
+    } catch (error: any) {
+        console.error('Error updating DNS record:', error);
+        next(error);
+    }
+}

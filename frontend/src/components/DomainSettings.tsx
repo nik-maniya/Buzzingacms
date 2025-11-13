@@ -728,6 +728,8 @@ export function DomainSettings() {
                   <SelectItem value="CNAME">CNAME (Canonical Name)</SelectItem>
                   <SelectItem value="TXT">TXT (Text Record)</SelectItem>
                   <SelectItem value="MX">MX (Mail Exchange)</SelectItem>
+                  <SelectItem value="NS">NS (Name Server)</SelectItem>
+                  <SelectItem value="SRV">SRV (Service Record)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -757,6 +759,7 @@ export function DomainSettings() {
                     : dnsRecordForm.type === "TXT"
                     ? "v=spf1 include:_spf.example.com ~all"
                     : "mail.example.com"
+                    
                 }
                 value={dnsRecordForm.value}
                 onChange={(e) => setDnsRecordForm({ ...dnsRecordForm, value: e.target.value })}
