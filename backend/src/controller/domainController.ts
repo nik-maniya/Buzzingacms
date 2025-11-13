@@ -24,15 +24,44 @@ export const upsertDomain = async (req: AuthRequest, res: Response, next: NextFu
             throw new ApiError('Invalid domain name', 400);
         }
 
+        const userId = parseInt(req.user.id);
+
+        const existingUserDomain = await prisma.domain.findFirst({
+            where: {
+                authorId: userId,
+            },
+        });
+
+        const existingDomainByName = await prisma.domain.findUnique({
+            where: { domainName },
+        });
+
+        let isUpdate = false;
+        let message = '';
+
+        if (existingDomainByName) {
+            if (existingDomainByName.authorId !== userId) {
+                throw new ApiError('This domain is already registered by another user', 400);
+            }
+            isUpdate = true;
+            message = 'Domain updated successfully';
+        } else {
+            if (existingUserDomain) {
+                throw new ApiError('You already have a domain. Each user can only have one main domain.', 400);
+            }
+            isUpdate = false;
+            message = 'Domain added successfully';
+        }
+
         const domain = await prisma.domain.upsert({
             where: { domainName },
             update: {
                 domainName,
-                // Only update authorId if it's not already set (for existing domains)
+                updatedAt: new Date(),
             },
             create: {
                 domainName,
-                authorId: parseInt(req.user.id),
+                authorId: userId,
                 sslActive: false,
                 verified: false,
             },
@@ -50,7 +79,7 @@ export const upsertDomain = async (req: AuthRequest, res: Response, next: NextFu
 
         res.json({
             success: true,
-            message: 'Domain upserted successfully',
+            message: message,
             data: domain,
         });
     } catch (error: any) {
@@ -101,6 +130,57 @@ export const getDomain = async (req: AuthRequest, res: Response, next: NextFunct
             data: domain,
         });
     } catch (error) {
+        next(error);
+    }
+}
+
+export const createDNSRecord = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { domainId, type, name, value, ttl } = req.body;
+
+        if (!domainId || !type || !name || !value) {
+            throw new ApiError('All fields are required', 400);
+        }
+
+        const validTypes = ['A', 'AAAA', 'CNAME', 'TXT', 'MX', 'NS', 'SRV'];
+        if (!validTypes.includes(type)) {
+            throw new ApiError('Invalid DNS record type', 400);
+        }
+
+        const ttlValue = ttl || 3600;
+        if (ttlValue < 60 || ttlValue > 86400) {
+            throw new ApiError('TTL must be between 60 and 86400 seconds', 400);
+        }
+
+        const domain = await prisma.domain.findUnique({
+            where: { id: parseInt(domainId, 10) },
+        });
+
+        if (!domain) {
+            throw new ApiError('Domain not found', 404);
+        }
+
+        const dnsRecord = await prisma.dnsRecord.create({
+            data: {
+                domainId: parseInt(domainId, 10),
+                type: type as any,
+                name,
+                value,
+                ttl: ttlValue,
+                status: 'ACTIVE',
+            },
+            include: {
+                domain: true,
+            }
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'DNS record created successfully',
+            data: dnsRecord,
+        });
+    } catch (error: any) {
+        console.error('Error creating DNS record:', error);
         next(error);
     }
 }
