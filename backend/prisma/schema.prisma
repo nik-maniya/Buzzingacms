@@ -196,6 +196,38 @@ model PageTemplate {
   @@map("page_templates")
 }
 
+model Domain {
+  id              Int         @id @default(autoincrement())
+  domainName      String      @unique
+  sslActive       Boolean     @default(false)
+  sslValidUntil   DateTime?
+  lastVerified    DateTime?
+  verified        Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  dnsRecords      DnsRecord[]
+
+  @@index([domainName])
+  @@map("domains")
+}
+
+model DnsRecord {
+  id          Int      @id @default(autoincrement())
+  domainId    Int
+  type        DnsRecordType
+  name        String
+  value       String
+  ttl         Int      @default(3600)
+  status      DnsRecordStatus @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  domain      Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@index([domainId])
+  @@index([type])
+  @@map("dns_records")
+}
+
 enum Role {
   ADMIN
   EDITOR
@@ -212,4 +244,21 @@ enum CollectionItemStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+enum DnsRecordType {
+  A
+  AAAA
+  CNAME
+  MX
+  TXT
+  NS
+  SRV
+}
+
+enum DnsRecordStatus {
+  ACTIVE
+  WARNING
+  ERROR
+  PENDING
 }
