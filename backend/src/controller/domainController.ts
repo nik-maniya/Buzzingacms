@@ -68,14 +68,10 @@ export const getDomain = async (req: AuthRequest, res: Response, next: NextFunct
             throw new ApiError('User not authenticated', 401);
         }
 
-        const { domainName } = req.params;
-
-        if (!domainName) {
-            throw new ApiError('Domain name is required', 400);
-        }
-
-        const domain = await prisma.domain.findUnique({
-            where: { domainName },
+        const domain = await prisma.domain.findFirst({
+            where: {
+                authorId: parseInt(req.user.id),
+            },
             include: {
                 dnsRecords: {
                     orderBy: {
@@ -93,12 +89,11 @@ export const getDomain = async (req: AuthRequest, res: Response, next: NextFunct
         });
 
         if (!domain) {
-            throw new ApiError('Domain not found', 404);
-        }
-
-        // Only allow access if user is ADMIN or the domain owner
-        if (req.user.role !== 'ADMIN' && domain.authorId !== parseInt(req.user.id)) {
-            throw new ApiError('You do not have permission to access this domain', 403);
+            res.json({
+                success: true,
+                data: null,
+            });
+            return;
         }
 
         res.json({
