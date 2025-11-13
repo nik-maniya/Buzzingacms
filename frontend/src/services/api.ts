@@ -157,6 +157,27 @@ export const pageTemplatesAPI = {
     api.get(`/page-templates/renderItem/${collectionId}/${itemId}`),
 };
 
+// Domain API
+export const domainAPI = {
+  // Upsert domain (create or update)
+  upsert: (domainData: { domainName: string }) =>
+    api.post('/domain/upsertDomain', domainData),
+  
+  // Note: The following endpoints need to be implemented in the backend
+  // getAll: () => api.get('/domain'),
+  // getById: (id: string) => api.get(`/domain/${id}`),
+  // delete: (id: string) => api.delete(`/domain/${id}`),
+};
+
+// DNS Records API
+export const dnsRecordsAPI = {
+  // Note: These endpoints need to be implemented in the backend
+  // getAll: (domainId: string) => api.get(`/domain/${domainId}/dns-records`),
+  // create: (domainId: string, recordData: any) => api.post(`/domain/${domainId}/dns-records`, recordData),
+  // update: (domainId: string, recordId: string, recordData: any) => api.put(`/domain/${domainId}/dns-records/${recordId}`, recordData),
+  // delete: (domainId: string, recordId: string) => api.delete(`/domain/${domainId}/dns-records/${recordId}`),
+};
+
 // Health check
 export const healthCheck = () => api.get('/health');
 
