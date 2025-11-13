@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createDNSRecord, getDomain, updateDNSRecord, upsertDomain } from '../controller/domainController';
+import { createDNSRecord, deleteDNSRecord, getDomain, updateDNSRecord, upsertDomain } from '../controller/domainController';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -15,5 +15,8 @@ router.post('/createDNSRecord', authenticate, createDNSRecord);
 
 // POST /api/domain/updateDNSRecord - Update DNS record
 router.put('/updateDNSRecord/:id', authenticate, updateDNSRecord);
+
+// DELETE /api/domain/deleteDNSRecord - Delete DNS record
+router.delete('/deleteDNSRecord/:id', authenticate, deleteDNSRecord);
 
 export default router;

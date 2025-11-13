@@ -130,7 +130,7 @@ export const getDomain = async (req: AuthRequest, res: Response, next: NextFunct
             include: {
                 dnsRecords: {
                     orderBy: {
-                        createdAt: 'desc',
+                        createdAt: 'asc',
                     },
                 },
                 author: {
@@ -253,6 +253,38 @@ export const updateDNSRecord = async (req: AuthRequest, res: Response, next: Nex
         });
     } catch (error: any) {
         console.error('Error updating DNS record:', error);
+        next(error);
+    }
+}
+
+export const deleteDNSRecord = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+
+        const recordId = parseInt(id, 10);
+        if (isNaN(recordId)) {
+            throw new ApiError('Invalid record ID', 400);
+        }
+
+        const existingRecord = await prisma.dnsRecord.findUnique({
+            where: { id: recordId },
+        });
+
+        if (!existingRecord) {
+            throw new ApiError('DNS record not found', 404);
+        }
+
+        await prisma.dnsRecord.delete({
+            where: { id: recordId },
+        });
+
+        res.json({
+            success: true,
+            message: 'DNS record deleted successfully',
+        });
+        
+    } catch (error: any) {
+        console.error('Error deleting DNS record:', error);
         next(error);
     }
 }
