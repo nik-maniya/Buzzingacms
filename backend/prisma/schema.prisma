@@ -21,6 +21,7 @@ model User {
   menus         Menu[]
   pageTemplates PageTemplate[]
   pages         Page[]
+  domains       Domain[]
 
   @@map("users")
 }
@@ -199,6 +200,7 @@ model PageTemplate {
 model Domain {
   id              Int         @id @default(autoincrement())
   domainName      String      @unique
+  authorId        Int
   sslActive       Boolean     @default(false)
   sslValidUntil   DateTime?
   lastVerified    DateTime?
@@ -206,8 +208,10 @@ model Domain {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   dnsRecords      DnsRecord[]
+  author          User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([domainName])
+  @@index([authorId])
   @@map("domains")
 }
 
