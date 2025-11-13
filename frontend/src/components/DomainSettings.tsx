@@ -111,7 +111,7 @@ export function DomainSettings() {
     const fetchDomain = async () => {
       setIsFetching(true);
       try {
-        const response = await domainAPI.get();
+        const response = await domainAPI.getDomain();
         
         if (response.data.success) {
           const apiDomain = response.data.data as DomainApiResponse | null;
@@ -194,32 +194,27 @@ export function DomainSettings() {
 
     setIsLoading(true);
     try {
-      const response = await domainAPI.upsert({
+      const response = await domainAPI.upsertDomain({
         domainName: domainForm.name.trim(),
       });
 
       if (response.data.success) {
+        // Show success message from backend (either "Domain added successfully" or "Domain updated successfully")
+        const message = response.data.message || "Domain saved successfully";
+        toast.success(message);
+        
         const apiDomain = response.data.data as DomainApiResponse;
         const newDomain = mapApiDomainToDomain(apiDomain);
 
-        // Check if domain already exists in the list
-        const existingIndex = domains.findIndex((d) => d.name === newDomain.name);
-        if (existingIndex >= 0) {
-          // Update existing domain
-          const updatedDomains = [...domains];
-          updatedDomains[existingIndex] = newDomain;
-          setDomains(updatedDomains);
-          toast.success("Domain updated successfully");
-        } else {
-          // Replace the domain (user only has one domain)
-          setDomains([newDomain]);
-          toast.success("Domain added successfully");
-        }
+        // Replace the domain (user only has one domain)
+        setDomains([newDomain]);
         
         // Update DNS records if they were included in the response
         if (apiDomain.dnsRecords && apiDomain.dnsRecords.length > 0) {
           const mappedRecords = apiDomain.dnsRecords.map(mapApiDnsRecordToDnsRecord);
           setDnsRecords(mappedRecords);
+        } else {
+          setDnsRecords([]);
         }
 
         setDomainForm({ name: "" });
@@ -228,7 +223,7 @@ export function DomainSettings() {
         
         // Refresh domain data after adding/updating
         try {
-          const getResponse = await domainAPI.get();
+          const getResponse = await domainAPI.getDomain();
           if (getResponse.data.success) {
             const apiDomain = getResponse.data.data as DomainApiResponse | null;
             if (apiDomain) {
@@ -266,6 +261,12 @@ export function DomainSettings() {
       return;
     }
 
+    // Check if user has a domain
+    if (!currentDomain) {
+      toast.error("Please create a domain first before adding DNS records");
+      return;
+    }
+
     // Validate based on record type
     if (dnsRecordForm.type === "A") {
       const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
@@ -285,42 +286,52 @@ export function DomainSettings() {
       return;
     }
 
+    setIsLoading(true);
     try {
-      // TODO: Replace with actual API call
-      // const apiBase = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
-      // const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
-      // const response = await fetch(`${apiBase}/api/domains/${selectedDomainId}/dns-records`, {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //     Authorization: `Bearer ${token}`,
-      //   },
-      //   body: JSON.stringify(dnsRecordForm),
-      // });
-      // const data = await response.json();
-
-      // For now, add to local state
-      const newRecord: DNSRecord = {
-        id: Date.now().toString(),
+      const response = await domainAPI.createDNSRecord({
+        domainId: parseInt(currentDomain.id, 10),
         type: dnsRecordForm.type,
         name: dnsRecordForm.name.trim(),
         value: dnsRecordForm.value.trim(),
         ttl: dnsRecordForm.ttl,
-        status: "active",
-      };
-
-      setDnsRecords([...dnsRecords, newRecord]);
-      setDnsRecordForm({
-        type: "A",
-        name: "",
-        value: "",
-        ttl: 3600,
       });
-      setIsAddRecordOpen(false);
-      toast.success("DNS record added successfully");
-    } catch (error) {
-      toast.error("Failed to add DNS record");
+
+      if (response.data.success) {
+        toast.success(response.data.message || "DNS record added successfully");
+        
+        // Refresh domain data to get updated DNS records
+        try {
+          const getResponse = await domainAPI.getDomain();
+          if (getResponse.data.success) {
+            const apiDomain = getResponse.data.data as DomainApiResponse | null;
+            if (apiDomain && apiDomain.dnsRecords) {
+              const mappedRecords = apiDomain.dnsRecords.map(mapApiDnsRecordToDnsRecord);
+              setDnsRecords(mappedRecords);
+            }
+          }
+        } catch (refreshError) {
+          console.error("Error refreshing DNS records:", refreshError);
+        }
+
+        setDnsRecordForm({
+          type: "A",
+          name: "",
+          value: "",
+          ttl: 3600,
+        });
+        setIsAddRecordOpen(false);
+      } else {
+        toast.error(response.data.message || "Failed to add DNS record");
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to add DNS record";
+      toast.error(errorMessage);
       console.error("Error adding DNS record:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 

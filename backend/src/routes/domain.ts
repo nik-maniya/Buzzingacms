@@ -8,7 +8,7 @@ const router = Router();
 router.post('/upsertDomain', authenticate, upsertDomain);
 
 // GET /api/domain - Get domain
-router.get('/getDomain/:domainName', authenticate, getDomain);
+router.get('/getDomain', authenticate, getDomain);
 
 // POST /api/domain/createDNSRecord - Create DNS record
 router.post('/createDNSRecord', authenticate, createDNSRecord);

@@ -36,20 +36,46 @@ export const upsertDomain = async (req: AuthRequest, res: Response, next: NextFu
             where: { domainName },
         });
 
-        let isUpdate = false;
         let message = '';
 
-        if (existingDomainByName) {
-            if (existingDomainByName.authorId !== userId) {
+        if (existingUserDomain) {
+            if (existingDomainByName) {
+                if (existingDomainByName.authorId !== userId) {
+                    throw new ApiError('This domain is already registered by another user', 400);
+                }
+                message = 'Domain updated successfully';
+            } else {
+                await prisma.$executeRaw`
+                    UPDATE domains 
+                    SET "domainName" = ${domainName}, "updatedAt" = NOW()
+                    WHERE id = ${existingUserDomain.id}
+                `;
+
+                const domain = await prisma.domain.findUnique({
+                    where: { id: existingUserDomain.id },
+                    include: {
+                        dnsRecords: true,
+                        author: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                            },
+                        },
+                    },
+                });
+
+                res.json({
+                    success: true,
+                    message: 'Domain updated successfully',
+                    data: domain,
+                });
+                return;
+            }
+        } else {
+            if (existingDomainByName) {
                 throw new ApiError('This domain is already registered by another user', 400);
             }
-            isUpdate = true;
-            message = 'Domain updated successfully';
-        } else {
-            if (existingUserDomain) {
-                throw new ApiError('You already have a domain. Each user can only have one main domain.', 400);
-            }
-            isUpdate = false;
             message = 'Domain added successfully';
         }
 

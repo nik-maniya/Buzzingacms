@@ -160,20 +160,20 @@ export const pageTemplatesAPI = {
 // Domain API
 export const domainAPI = {
   // Get current user's domain
-  get: () => api.get('/domain'),
+  getDomain: () => api.get('/domain/getDomain'),
   
   // Upsert domain (create or update)
-  upsert: (domainData: { domainName: string }) =>
+  upsertDomain: (domainData: { domainName: string }) =>
     api.post('/domain/upsertDomain', domainData),
-};
-
-// DNS Records API
-export const dnsRecordsAPI = {
-  // Note: These endpoints need to be implemented in the backend
-  // getAll: (domainId: string) => api.get(`/domain/${domainId}/dns-records`),
-  // create: (domainId: string, recordData: any) => api.post(`/domain/${domainId}/dns-records`, recordData),
-  // update: (domainId: string, recordId: string, recordData: any) => api.put(`/domain/${domainId}/dns-records/${recordId}`, recordData),
-  // delete: (domainId: string, recordId: string) => api.delete(`/domain/${domainId}/dns-records/${recordId}`),
+  
+  // Create DNS record
+  createDNSRecord: (recordData: {
+    domainId: number;
+    type: string;
+    name: string;
+    value: string;
+    ttl?: number;
+  }) => api.post('/domain/createDNSRecord', recordData),
 };
 
 // Health check
