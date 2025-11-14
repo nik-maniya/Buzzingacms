@@ -45,7 +45,7 @@ export function Menus() {
 
       const apiBase = (import.meta as any).env?.VITE_API_URL
         ? (import.meta as any).env.VITE_API_URL
-        : "http://localhost:5000";
+        : "http://mycms.test:3000";
 
       try {
         // Always load the list initially to avoid calling getMenuById with null
@@ -101,7 +101,7 @@ export function Menus() {
 
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     const menuData = {
       name: "Global Menu",

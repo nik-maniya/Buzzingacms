@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
@@ -291,6 +291,327 @@ export const getPageById = async (req: AuthRequest, res: Response, next: NextFun
         res.json({
             success: true,
             data: page,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Helper function to process collection placeholders in HTML content
+async function processCollectionPlaceholders(html: string, authorId: number): Promise<string> {
+    if (!html) return html;
+    
+    // Match {{collection:slug}} pattern
+    const collectionPattern = /\{\{collection:([^}]+)\}\}/g;
+    const collectionMatches = Array.from(html.matchAll(collectionPattern));
+    
+    if (collectionMatches.length === 0) {
+        return html;
+    }
+    
+    let processedHtml = html;
+    
+    // Process collections in reverse order to maintain correct indices
+    const matchesArray = Array.from(collectionMatches).reverse();
+    
+    for (const match of matchesArray) {
+        const fullMatch = match[0];
+        const collectionSlug = match[1].trim();
+        
+        // Find collection by slug for this author
+        const collection = await prisma.collection.findFirst({
+            where: {
+                slug: collectionSlug,
+                authorId: authorId,
+            },
+            include: {
+                fields: {
+                    orderBy: {
+                        order: 'asc',
+                    },
+                },
+            },
+        });
+        
+        if (!collection) {
+            processedHtml = processedHtml.replace(fullMatch, `<div style="padding: 1rem; background: #f5f5f5; border-radius: 4px; margin: 1rem 0;">
+              <p style="color: #666; margin: 0;">Collection "${collectionSlug}" not found.</p>
+            </div>`);
+            continue;
+        }
+        
+        // Fetch published items for this collection
+        const items = await prisma.collectionItem.findMany({
+            where: {
+                collectionId: collection.id,
+                status: 'PUBLISHED',
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+        
+        if (items.length === 0) {
+            processedHtml = processedHtml.replace(fullMatch, `<div style="padding: 1rem; background: #f5f5f5; border-radius: 4px; margin: 1rem 0;">
+              <p style="color: #666; margin: 0;">Collection "${collectionSlug}" has no published items.</p>
+            </div>`);
+            continue;
+        }
+        
+        // Find the placeholder position
+        const placeholderIndex = processedHtml.indexOf(fullMatch);
+        if (placeholderIndex === -1) continue;
+        
+        const beforePlaceholder = processedHtml.substring(0, placeholderIndex);
+        const afterPlaceholder = processedHtml.substring(placeholderIndex + fullMatch.length);
+        
+        // Extract template - everything after the collection placeholder until next {{collection:slug}}
+        let template = '';
+        const nextCollectionPattern = /\{\{collection:([^}]+)\}\}/;
+        const nextMatch = afterPlaceholder.match(nextCollectionPattern);
+        
+        if (nextMatch && nextMatch.index !== undefined) {
+            template = afterPlaceholder.substring(0, nextMatch.index).trim();
+        } else {
+            template = afterPlaceholder.trim();
+        }
+        
+        // Default template if none provided
+        if (!template || template.length === 0) {
+            template = `
+              <div class="collection-item" style="margin-bottom: 2rem; padding: 1.5rem; border: 1px solid #e5e5e5; border-radius: 8px;">
+                <h2>{{title}}</h2>
+                <p>{{description}}</p>
+              </div>
+            `;
+        }
+        
+        // Render each item
+        const itemsHtml = items.map((item, index) => {
+            const itemData = item.data as Record<string, any> || {};
+            const fields = collection.fields || [];
+            
+            // Enhanced item data with metadata
+            const enhancedItemData: Record<string, any> = {
+                ...itemData,
+                _itemId: item.id,
+                _itemIndex: index,
+                _itemNumber: index + 1,
+                _totalItems: items.length,
+                slug: itemData.slug || itemData.Slug || itemData.SLUG || '',
+            };
+            
+            // Replace field placeholders in template
+            let itemHtml = template;
+            fields.forEach((field) => {
+                const label = field.fieldLabel;
+                const labelLower = label.toLowerCase().replace(/\s+/g, '_');
+                
+                const placeholderExact = `{{${label}}}`;
+                const placeholderLower = `{{${labelLower}}}`;
+                
+                // Find value in itemData
+                let value: any = undefined;
+                if (enhancedItemData[label] !== undefined) value = enhancedItemData[label];
+                if (value === undefined && enhancedItemData[labelLower] !== undefined) value = enhancedItemData[labelLower];
+                if (value === undefined && enhancedItemData[String(field.id)] !== undefined) value = enhancedItemData[String(field.id)];
+                if (value === undefined) {
+                    const matchKey = Object.keys(enhancedItemData).find(
+                        (k) => k.toLowerCase().replace(/\s+/g, '_') === labelLower
+                    );
+                    if (matchKey) value = enhancedItemData[matchKey];
+                }
+                
+                const replaceWith = String(value ?? '');
+                
+                // Replace both exact and lowercase variants
+                const escapedExact = placeholderExact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const escapedLower = placeholderLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                itemHtml = itemHtml.replace(new RegExp(escapedExact, 'g'), replaceWith);
+                itemHtml = itemHtml.replace(new RegExp(escapedLower, 'g'), replaceWith);
+            });
+            
+            return itemHtml;
+        }).join('\n');
+        
+        // Replace placeholder with rendered items
+        const remainingContent = nextMatch && nextMatch.index !== undefined 
+            ? afterPlaceholder.substring(nextMatch.index) 
+            : '';
+        processedHtml = beforePlaceholder + itemsHtml + remainingContent;
+    }
+    
+    return processedHtml;
+}
+
+// Public endpoint - Get published page by slug (no authentication required)
+export const getPublicPageBySlug = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { slug } = req.params;
+        
+        if (!slug) {
+            throw new ApiError('Slug is required', 400);
+        }
+
+        // If slug is 'home' or empty, ALWAYS show the page marked as home page
+        // This ensures users first see the home page when they visit the site
+        if (slug === 'home' || slug === '') {
+            // Priority 1: Find page with slug 'home' AND marked as home page (most specific)
+            const exactHomePage = await prisma.page.findFirst({
+                where: {
+                    slug: 'home',
+                    isHomePage: true,
+                    status: 'PUBLISHED',
+                },
+                include: {
+                    author: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                },
+            });
+            
+            if (exactHomePage) {
+                // Process collection placeholders in content
+                const contentHtml = (exactHomePage.content as any)?.html || '';
+                const processedContent = await processCollectionPlaceholders(contentHtml, exactHomePage.authorId);
+                
+                // Update the page object with processed content
+                const processedPage = {
+                    ...exactHomePage,
+                    content: {
+                        ...(exactHomePage.content as any),
+                        html: processedContent,
+                    },
+                };
+                
+                return res.json({
+                    success: true,
+                    data: processedPage,
+                });
+            }
+            
+            // Priority 2: Find any page marked as home page (regardless of slug)
+            const homePage = await prisma.page.findFirst({
+                where: {
+                    isHomePage: true,
+                    status: 'PUBLISHED',
+                },
+                include: {
+                    author: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                },
+                orderBy: {
+                    createdAt: 'asc', // Get the first created home page if multiple exist
+                },
+            });
+            
+            if (homePage) {
+                // Process collection placeholders in content
+                const contentHtml = (homePage.content as any)?.html || '';
+                const processedContent = await processCollectionPlaceholders(contentHtml, homePage.authorId);
+                
+                // Update the page object with processed content
+                const processedPage = {
+                    ...homePage,
+                    content: {
+                        ...(homePage.content as any),
+                        html: processedContent,
+                    },
+                };
+                
+                return res.json({
+                    success: true,
+                    data: processedPage,
+                });
+            }
+            
+            // Priority 3: If no page is marked as home, try to find a page with slug 'home'
+            const homeSlugPage = await prisma.page.findFirst({
+                where: {
+                    slug: 'home',
+                    status: 'PUBLISHED',
+                },
+                include: {
+                    author: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                },
+            });
+            
+            if (homeSlugPage) {
+                // Process collection placeholders in content
+                const contentHtml = (homeSlugPage.content as any)?.html || '';
+                const processedContent = await processCollectionPlaceholders(contentHtml, homeSlugPage.authorId);
+                
+                // Update the page object with processed content
+                const processedPage = {
+                    ...homeSlugPage,
+                    content: {
+                        ...(homeSlugPage.content as any),
+                        html: processedContent,
+                    },
+                };
+                
+                return res.json({
+                    success: true,
+                    data: processedPage,
+                });
+            }
+            
+            // If still no page found, return 404
+            throw new ApiError('Home page not found. Please mark a page as "Home Page" in your CMS.', 404);
+        }
+
+        // For other slugs, find the page by slug
+        const page = await prisma.page.findFirst({
+            where: {
+                slug: slug,
+                status: 'PUBLISHED',
+            },
+            include: {
+                author: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        if (!page) {
+            throw new ApiError('Page not found', 404);
+        }
+
+        // Process collection placeholders in content
+        const contentHtml = (page.content as any)?.html || '';
+        const processedContent = await processCollectionPlaceholders(contentHtml, page.authorId);
+        
+        // Update the page object with processed content
+        const processedPage = {
+            ...page,
+            content: {
+                ...(page.content as any),
+                html: processedContent,
+            },
+        };
+
+        res.json({
+            success: true,
+            data: processedPage,
         });
     } catch (error) {
         next(error);

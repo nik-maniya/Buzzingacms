@@ -65,7 +65,7 @@ export function PublicPageTemplate({
 
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     fetch(`${apiBase}/api/menus/getAllmenu`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
@@ -330,14 +330,45 @@ export function PublicPageTemplate({
     // Scope all page custom CSS to .cms-page-body to prevent it from affecting header/footer
     // Global header/footer CSS should not be scoped (they're already in their own containers)
     
-    // Only scope the customCss (page-specific CSS), not global header/footer CSS
     let pageCss = customCss || "";
     let globalCss = "";
     
-    if (!skipGlobalCss) {
-      // Keep global header/footer CSS unscoped
-      const parts = [globalHeaderCss, globalFooterCss].filter(Boolean);
-      globalCss = parts.join("\n\n");
+    // Check if customCss contains header/footer CSS markers (for public pages)
+    // If so, extract header/footer CSS and keep it unscoped
+    if (pageCss.includes("/* Header CSS */") || pageCss.includes("/* Footer CSS */")) {
+      const parts = pageCss.split(/\n\s*\n/);
+      const headerFooterParts: string[] = [];
+      const pageParts: string[] = [];
+      
+      let currentSection = "";
+      for (const part of parts) {
+        if (part.includes("/* Header CSS */")) {
+          if (currentSection) pageParts.push(currentSection);
+          currentSection = part.replace("/* Header CSS */", "").trim();
+          headerFooterParts.push(currentSection);
+          currentSection = "";
+        } else if (part.includes("/* Footer CSS */")) {
+          if (currentSection) pageParts.push(currentSection);
+          currentSection = part.replace("/* Footer CSS */", "").trim();
+          headerFooterParts.push(currentSection);
+          currentSection = "";
+        } else {
+          currentSection += (currentSection ? "\n\n" : "") + part;
+        }
+      }
+      if (currentSection) pageParts.push(currentSection);
+      
+      // Header/footer CSS should be global (unscoped)
+      globalCss = headerFooterParts.join("\n\n");
+      // Page CSS should be scoped
+      pageCss = pageParts.join("\n\n");
+    } else {
+      // No markers found, treat all as page CSS (will be scoped)
+      // But also include global header/footer CSS if available
+      if (!skipGlobalCss) {
+        const parts = [globalHeaderCss, globalFooterCss].filter(Boolean);
+        globalCss = parts.join("\n\n");
+      }
     }
     
     // Scope page CSS to .cms-page-body
@@ -382,13 +413,15 @@ export function PublicPageTemplate({
         return;
       }
 
-      // Check if this is a link to an available page
+      // Check if this is a link to an available page (if availablePages provided)
+      // Otherwise, treat all relative paths as internal links
       const normalizedHref = href.startsWith('/') ? href : `/${href}`;
-      const matchingPage = availablePages.find(
-        (p) => p.slug === normalizedHref || p.slug === href || p.id === href
-      );
+      const matchingPage = availablePages.length > 0 
+        ? availablePages.find((p) => p.slug === normalizedHref || p.slug === href || p.id === href)
+        : null;
 
-      if (matchingPage || href.startsWith('/')) {
+      // If availablePages is empty, treat all relative paths as internal links
+      if (matchingPage || href.startsWith('/') || (availablePages.length === 0 && !href.startsWith('http'))) {
         // This is an internal link - prevent default and use client-side routing
         e.preventDefault();
         e.stopPropagation();
@@ -435,16 +468,10 @@ export function PublicPageTemplate({
       {/* Automatically wrap all user content in .cms-page */}  
       <div className="cms-page" ref={contentContainerRef}>
         {/* Header Section */}
-        {!skipGlobalCss && (globalHeaderHtml || headerContent) ? (
+        {(globalHeaderHtml || headerContent) ? (
           <div
             style={{ maxWidth: "100%", overflow: "hidden" }}
             dangerouslySetInnerHTML={createMarkup(globalHeaderHtml || headerContent)}
-          />
-        ) : null}
-        {skipGlobalCss && headerContent ? (
-          <div
-            style={{ maxWidth: "100%", overflow: "hidden" }}
-            dangerouslySetInnerHTML={createMarkup(headerContent)}
           />
         ) : null}
 
@@ -463,14 +490,9 @@ export function PublicPageTemplate({
         </main>
 
         {/* Footer Section */}
-        {!skipGlobalCss && (globalFooterHtml || footerContent) ? (
+        {(globalFooterHtml || footerContent) ? (
           <div
             dangerouslySetInnerHTML={createMarkup(globalFooterHtml || footerContent)}
-          />
-        ) : null}
-        {skipGlobalCss && footerContent ? (
-          <div
-            dangerouslySetInnerHTML={createMarkup(footerContent)}
           />
         ) : null}
         

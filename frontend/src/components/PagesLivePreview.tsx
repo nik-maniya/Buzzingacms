@@ -39,7 +39,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
 
   const apiBase = (import.meta as any).env?.VITE_API_URL
     ? (import.meta as any).env.VITE_API_URL
-    : "http://localhost:5000";
+    : "http://mycms.test:3000";
 
   // Function to open item detail inline
   const openItemDetail = async (collectionId: number, itemId: number) => {

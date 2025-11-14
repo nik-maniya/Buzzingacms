@@ -3,76 +3,159 @@ import { PublicPageTemplate } from "./PublicPageTemplate";
 
 interface PublicPageProps {
   slug: string;
+  onNavigate?: (path: string) => void;
 }
 
-// This component simulates fetching and rendering a public page
-// In production, this would fetch from your CMS API
-export function PublicPage({ slug }: PublicPageProps) {
+// Fetch and render a public page from the CMS API
+export function PublicPage({ slug, onNavigate }: PublicPageProps) {
   const [loading, setLoading] = useState(true);
   const [pageData, setPageData] = useState<{
     title: string;
     body: string;
     headerContent: string;
     footerContent: string;
-    status: "published" | "draft";
+    headerCss?: string;
+    footerCss?: string;
+    headerJs?: string;
+    footerJs?: string;
+    customCss?: string;
+    customJs?: string;
+    status: "PUBLISHED" | "DRAFT";
   } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate API fetch
     const fetchPage = async () => {
       setLoading(true);
+      setError(null);
 
-      // Mock data - in production, fetch from API
-      const mockData = {
-        title: "Welcome to Buzzinga",
-        body: `
-          <h2>About Our Agency</h2>
-          <p>We are a design & development agency focused on creating exceptional digital experiences.</p>
-          
-          <h3>Our Services</h3>
-          <ul>
-            <li>Web Design & Development</li>
-            <li>Brand Identity</li>
-            <li>Digital Marketing</li>
-            <li>Custom CMS Solutions</li>
-          </ul>
-          
-          <h3>Why Choose Us?</h3>
-          <p>With over 10 years of experience, we've helped hundreds of clients transform their digital presence. Our team combines creativity with technical expertise to deliver results that exceed expectations.</p>
-          
-          <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=400&fit=crop" alt="Team collaboration" style="width: 100%; margin: 2rem 0;" />
-          
-          <p>Ready to start your project? <a href="/contact">Get in touch with us today</a>.</p>
-        `,
-        headerContent: `
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="margin: 0; font-size: 24px;">Buzzinga</h2>
-            <nav style="display: flex; gap: 24px;">
-              <a href="/" style="text-decoration: none;">Home</a>
-              <a href="/about" style="text-decoration: none;">About</a>
-              <a href="/services" style="text-decoration: none;">Services</a>
-              <a href="/contact" style="text-decoration: none;">Contact</a>
-            </nav>
-          </div>
-        `,
-        footerContent: `
-          <div style="text-align: left;">
-            <p style="margin-bottom: 8px;">&copy; 2025 Buzzinga. All rights reserved.</p>
-            <div style="display: flex; gap: 16px; margin-top: 12px;">
-              <a href="/privacy" style="text-decoration: none;">Privacy Policy</a>
-              <a href="/terms" style="text-decoration: none;">Terms of Service</a>
-              <a href="mailto:hello@buzzinga.com" style="text-decoration: none;">hello@buzzinga.com</a>
-            </div>
-          </div>
-        `,
-        status: "published" as const,
-      };
+      try {
+        // Fetch page data
+        // If slug is empty or undefined, use 'home' to show the home page
+        const pageSlug = slug || 'home';
+        const apiBase = (import.meta as any).env?.VITE_API_URL
+          ? (import.meta as any).env.VITE_API_URL
+          : "/api";
+        
+        // The backend will find the page marked as home page when slug is 'home'
+        const pageResponse = await fetch(`${apiBase}/pages/public/${pageSlug}`);
+        
+        if (!pageResponse.ok) {
+          if (pageResponse.status === 404) {
+            setError("Page not found");
+          } else {
+            setError("Failed to load page");
+          }
+          setLoading(false);
+          return;
+        }
 
-      // Simulate network delay
-      setTimeout(() => {
-        setPageData(mockData);
+        const pageJson = await pageResponse.json();
+        const page = pageJson.data;
+
+        if (!page || page.status !== 'PUBLISHED') {
+          setError("Page not found");
+          setLoading(false);
+          return;
+        }
+
+        // Fetch menu data for header and footer
+        let headerContent = '';
+        let footerContent = '';
+        let headerCss = '';
+        let footerCss = '';
+        let headerJs = '';
+        let footerJs = '';
+        
+        try {
+          const menuResponse = await fetch(`${apiBase}/menus/public`);
+          if (menuResponse.ok) {
+            const menuJson = await menuResponse.json();
+            const menu = menuJson.data;
+            
+            if (menu) {
+              // Extract header data
+              if (menu.header && typeof menu.header === 'object') {
+                headerContent = menu.header.html || menu.header.content || '';
+                headerCss = menu.header.css || '';
+                headerJs = menu.header.js || '';
+              } else if (typeof menu.header === 'string') {
+                headerContent = menu.header;
+              }
+              
+              // Extract footer data
+              if (menu.footer && typeof menu.footer === 'object') {
+                footerContent = menu.footer.html || menu.footer.content || '';
+                footerCss = menu.footer.css || '';
+                footerJs = menu.footer.js || '';
+              } else if (typeof menu.footer === 'string') {
+                footerContent = menu.footer;
+              }
+            }
+          } else {
+            console.warn("Menu API returned non-OK status:", menuResponse.status);
+          }
+        } catch (menuError) {
+          console.error("Failed to load menu:", menuError);
+          // Continue without menu if it fails
+        }
+        
+        // Log for debugging
+        console.log("Header content:", headerContent ? "Found" : "Empty");
+        console.log("Header CSS:", headerCss ? "Found" : "Empty");
+        console.log("Footer content:", footerContent ? "Found" : "Empty");
+        console.log("Footer CSS:", footerCss ? "Found" : "Empty");
+
+        // Extract content from page
+        const contentHtml = page.content?.html || page.contentHtml || '';
+        const body = typeof contentHtml === 'string' ? contentHtml : '';
+
+        // Separate CSS: header/footer CSS should not be scoped, page CSS should be scoped
+        // We'll pass header/footer CSS separately and merge page CSS with it
+        // The PublicPageTemplate will handle scoping correctly if we structure it right
+        
+        // For now, merge all CSS together - the template will apply it
+        // Header and footer CSS should be global (not scoped), page CSS should be scoped
+        // We'll include a comment marker to help identify header/footer CSS
+        const headerFooterCss = [
+          headerCss ? `/* Header CSS */\n${headerCss}` : '',
+          footerCss ? `/* Footer CSS */\n${footerCss}` : ''
+        ].filter(Boolean).join('\n\n');
+        
+        const pageCss = page.customCss || '';
+        
+        // Combine: header/footer CSS (global) + page CSS (will be scoped)
+        const allCss = [
+          headerFooterCss,
+          pageCss
+        ].filter(Boolean).join('\n\n');
+        
+        // Merge all JS: header JS + footer JS + page JS
+        const allJs = [
+          headerJs,
+          footerJs,
+          page.customJs || ''
+        ].filter(Boolean).join('\n\n');
+
+        setPageData({
+          title: page.title || 'Page',
+          body: body,
+          headerContent: headerContent,
+          footerContent: footerContent,
+          headerCss: headerCss,
+          footerCss: footerCss,
+          headerJs: headerJs,
+          footerJs: footerJs,
+          customCss: allCss, // All CSS (header/footer + page)
+          customJs: allJs,   // All JS (header/footer + page)
+          status: page.status,
+        });
+      } catch (err: any) {
+        console.error("Error fetching page:", err);
+        setError(err.message || "Failed to load page");
+      } finally {
         setLoading(false);
-      }, 500);
+      }
     };
 
     fetchPage();
@@ -89,12 +172,12 @@ export function PublicPage({ slug }: PublicPageProps) {
     );
   }
 
-  if (!pageData || pageData.status !== "published") {
+  if (error || !pageData || pageData.status !== "PUBLISHED") {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-neutral-900 mb-2">404</h1>
-          <p className="text-neutral-600">Page not found</p>
+          <h1 className="text-neutral-900 mb-2 text-4xl font-bold">404</h1>
+          <p className="text-neutral-600 text-lg">{error || "Page not found"}</p>
         </div>
       </div>
     );
@@ -106,6 +189,14 @@ export function PublicPage({ slug }: PublicPageProps) {
       bodyContent={pageData.body}
       footerContent={pageData.footerContent}
       pageTitle={pageData.title}
+      customCss={pageData.customCss}
+      customJs={pageData.customJs}
+      isPreviewMode={true}
+      onNavigate={onNavigate || ((path) => {
+        // Default navigation handler
+        window.history.pushState({}, '', path);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      })}
     />
   );
 }

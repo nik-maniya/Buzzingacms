@@ -29,7 +29,7 @@ connectDB();
 // Middleware
 app.use(helmet()); // Security headers
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000' || 'http://mycms.test:3000',
   credentials: true,
 }));
 app.use(compression()); // Compress responses
@@ -69,7 +69,7 @@ app.use((req: Request, res: Response) => {
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);
   console.log(`📝 API endpoints available at http://localhost:${PORT}/api`);
 });

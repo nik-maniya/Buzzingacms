@@ -55,7 +55,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
 
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     fetch(`${apiBase}/api/pages`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -82,7 +82,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
     if (!token) return;
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     try {
       const res = await fetch(`${apiBase}/api/pages/${pageId}`, {
@@ -106,7 +106,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
     if (!token) return;
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     try {
       const res = await fetch(`${apiBase}/api/pages/${pageId}`, {

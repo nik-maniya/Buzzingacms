@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 
-import { createMenu, deleteMenu, getAllMenus, getMenuById, updateMenu } from '../controller/menuController.js';
+import { createMenu, deleteMenu, getAllMenus, getMenuById, updateMenu, getPublicMenus } from '../controller/menuController.js';
 
 const router = Router();
+
+// Public route - Get public menus (no authentication)
+router.get('/public', getPublicMenus);
 
 // GET /api/menus - Get all menus
 router.get('/getAllmenu', authenticate, getAllMenus)

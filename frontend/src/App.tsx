@@ -9,6 +9,7 @@ import { Redirects } from "./components/Redirects";
 import { DomainSettings } from "./components/DomainSettings";
 import { Forms } from "./components/Forms";
 import { PublicPageDemo } from "./components/PublicPageDemo";
+import { PublicPage } from "./components/PublicPage";
 import { Login } from "./components/Login";
 import { Toaster } from "./components/ui/sonner";
 
@@ -221,11 +222,41 @@ export default function App() {
     );
   };
 
-  // Show login screen if not authenticated
+  // State for public page navigation
+  // When user first visits, always show the home page (slug 'home')
+  const [publicPageSlug, setPublicPageSlug] = useState(() => {
+    const path = window.location.pathname;
+    // Convert root path to 'home' so backend can find the page marked as home page
+    return path === '/' || path === '' ? 'home' : path.replace(/^\//, '');
+  });
+
+  // Handle browser navigation for public pages
+  useEffect(() => {
+    if (!isAuthenticated) {
+      const handlePublicNavigation = () => {
+        const currentPath = window.location.pathname;
+        const newSlug = currentPath === '/' || currentPath === '' ? 'home' : currentPath.replace(/^\//, '');
+        setPublicPageSlug(newSlug);
+      };
+      
+      window.addEventListener('popstate', handlePublicNavigation);
+      
+      return () => {
+        window.removeEventListener('popstate', handlePublicNavigation);
+      };
+    }
+  }, [isAuthenticated]);
+
+  // Show public pages if not authenticated (visitor accessing the domain)
   if (!isAuthenticated) {
     return (
       <>
-        <Login onLogin={handleLogin} />
+        <PublicPage slug={publicPageSlug} onNavigate={(path) => {
+          // Update URL and state
+          window.history.pushState({}, '', path);
+          const newSlug = path === '/' || path === '' ? 'home' : path.replace(/^\//, '');
+          setPublicPageSlug(newSlug);
+        }} />
         <Toaster />
       </>
     );

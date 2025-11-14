@@ -2,9 +2,12 @@ import { Router, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
-import { createPage, deletePage, getAllPages, getPageById, updatePage } from '../controller/pagesController.js';
+import { createPage, deletePage, getAllPages, getPageById, updatePage, getPublicPageBySlug } from '../controller/pagesController.js';
 
 const router = Router();
+
+// Public route - Get published page by slug (no authentication)
+router.get('/public/:slug', getPublicPageBySlug);
 
 // GET /api/pages - Get all pages
 router.get('/', authenticate, getAllPages) 

@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
@@ -246,6 +246,32 @@ export const getAllMenus = async (req: AuthRequest, res: Response, next: NextFun
         res.json({
             success: true,
             data: menus,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Public endpoint - Get public menus (no authentication required)
+export const getPublicMenus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // Get all menus (in a multi-user system, you might filter by domain)
+        // For now, we'll get the first global menu or header/footer menu
+        const menus = await prisma.menu.findMany({
+            orderBy: {
+                updatedAt: 'desc',
+            },
+            take: 10, // Limit to prevent too much data
+        });
+
+        // Find global menu or header/footer menu
+        const globalMenu = menus.find(m => m.location === 'global') 
+            || menus.find(m => m.location === 'header' || m.location === 'footer')
+            || menus[0];
+
+        res.json({
+            success: true,
+            data: globalMenu || null,
         });
     } catch (error) {
         next(error);

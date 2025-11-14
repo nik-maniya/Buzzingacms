@@ -47,7 +47,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
 
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     fetch(`${apiBase}/api/collections/with-items`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -68,7 +68,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
 
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     setLoadingItemDetail(true);
     setViewingItemDetailInPreview(true);
@@ -149,7 +149,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
 
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     setIsLoading(true);
     fetch(`${apiBase}/api/pages/${pageId}`, {
@@ -184,7 +184,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
 
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     const normalizedSlug = slug.startsWith("/") ? slug.slice(1) : slug;
 
@@ -231,7 +231,7 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     }
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://localhost:5000";
+      : "http://mycms.test:3000";
 
     fetch(`${apiBase}/api/pages`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {

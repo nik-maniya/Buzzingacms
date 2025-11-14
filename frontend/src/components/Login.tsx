@@ -21,7 +21,7 @@ export function Login({ onLogin }: LoginProps) {
       const response = await fetch(
         (import.meta as any).env?.VITE_API_URL
           ? `${(import.meta as any).env.VITE_API_URL}/api/auth/login`
-          : "http://localhost:5000/api/auth/login",
+          : "http://mycms.test:3000/api/auth/login",
         {
           method: "POST",
           headers: {
