@@ -39,7 +39,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
 
   const apiBase = (import.meta as any).env?.VITE_API_URL
     ? (import.meta as any).env.VITE_API_URL
-    : "http://mycms.test:3000";
+    : "http://mycms.test";
 
   // Function to open item detail inline
   const openItemDetail = async (collectionId: number, itemId: number) => {
@@ -609,7 +609,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
                 const frontendUrl = (import.meta as any).env?.VITE_FRONTEND_URL 
                   ? (import.meta as any).env.VITE_FRONTEND_URL 
                   : window.location.origin.includes('localhost') 
-                    ? 'http://localhost:3000' 
+                    ? 'http://localhost' 
                     : window.location.origin;
                 
                 // Build the full URL with page slug

@@ -21,7 +21,7 @@ dotenv.config();
 
 // Initialize Express app
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT || '5000', 10);
 
 // Connect to Database
 connectDB();
@@ -34,10 +34,14 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://mycms.test:3000',
-      'http://192.168.29.150:3000',
+      'http://localhost',
+      'http://localhost:80',
+      'http://127.0.0.1',
+      'http://127.0.0.1:80',
+      'http://mycms.test',
+      'http://mycms.test:80',
+      'http://192.168.29.150',
+      'http://192.168.29.150:80',
       process.env.FRONTEND_URL
     ].filter(Boolean);
     

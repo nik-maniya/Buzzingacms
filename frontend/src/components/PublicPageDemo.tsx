@@ -32,7 +32,7 @@ export function PublicPageDemo() {
 
   const apiBase = (import.meta as any).env?.VITE_API_URL
     ? (import.meta as any).env.VITE_API_URL
-    : "http://mycms.test:3000";
+    : "http://mycms.test";
 
   // Function to open item detail inline
   const openItemDetail = async (collectionId: number, itemId: number) => {

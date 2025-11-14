@@ -55,7 +55,7 @@ export function Sidebar({ activeView, onViewChange, onLogout }: SidebarProps) {
 
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test:3000";
+      : "http://mycms.test";
 
     fetch(`${apiBase}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },

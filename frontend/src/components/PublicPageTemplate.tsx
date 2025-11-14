@@ -65,7 +65,7 @@ export function PublicPageTemplate({
 
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test:3000";
+      : "http://mycms.test";
 
     fetch(`${apiBase}/api/menus/getAllmenu`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
