@@ -403,33 +403,93 @@ async function processCollectionPlaceholders(html: string, authorId: number): Pr
             
             // Replace field placeholders in template
             let itemHtml = template;
+            
+            // First, try to match fields by their fieldLabel (matching frontend logic)
             fields.forEach((field) => {
-                const label = field.fieldLabel;
-                const labelLower = label.toLowerCase().replace(/\s+/g, '_');
+                const fieldLabel = field.fieldLabel || '';
+                const possibleKeys = [
+                    fieldLabel,
+                    fieldLabel.toLowerCase().replace(/\s+/g, '_'),
+                    fieldLabel.toLowerCase().replace(/\s+/g, '-'),
+                    fieldLabel.toLowerCase(),
+                    String(field.id)
+                ];
                 
-                const placeholderExact = `{{${label}}}`;
-                const placeholderLower = `{{${labelLower}}}`;
-                
-                // Find value in itemData
-                let value: any = undefined;
-                if (enhancedItemData[label] !== undefined) value = enhancedItemData[label];
-                if (value === undefined && enhancedItemData[labelLower] !== undefined) value = enhancedItemData[labelLower];
-                if (value === undefined && enhancedItemData[String(field.id)] !== undefined) value = enhancedItemData[String(field.id)];
-                if (value === undefined) {
-                    const matchKey = Object.keys(enhancedItemData).find(
-                        (k) => k.toLowerCase().replace(/\s+/g, '_') === labelLower
-                    );
-                    if (matchKey) value = enhancedItemData[matchKey];
+                let fieldValue: any = null;
+                for (const key of possibleKeys) {
+                    if (enhancedItemData[key] !== undefined && enhancedItemData[key] !== null && enhancedItemData[key] !== '') {
+                        fieldValue = enhancedItemData[key];
+                        break;
+                    }
                 }
                 
-                const replaceWith = String(value ?? '');
-                
-                // Replace both exact and lowercase variants
-                const escapedExact = placeholderExact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const escapedLower = placeholderLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                itemHtml = itemHtml.replace(new RegExp(escapedExact, 'g'), replaceWith);
-                itemHtml = itemHtml.replace(new RegExp(escapedLower, 'g'), replaceWith);
+                if (fieldValue !== null) {
+                    // Replace {{fieldLabel}} and variations (case-insensitive)
+                    const placeholderVariations = [
+                        fieldLabel,
+                        fieldLabel.toLowerCase().replace(/\s+/g, '_'),
+                        fieldLabel.toLowerCase().replace(/\s+/g, '-'),
+                        fieldLabel.toLowerCase(),
+                    ];
+                    
+                    placeholderVariations.forEach(placeholder => {
+                        const escaped = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(`\\{\\{${escaped}\\}\\}`, 'gi'); // Case-insensitive
+                        itemHtml = itemHtml.replace(regex, String(fieldValue));
+                    });
+                }
             });
+            
+            // Then replace any remaining placeholders from itemData directly
+            Object.keys(enhancedItemData).forEach((key) => {
+                const value = enhancedItemData[key];
+                if (value !== null && value !== undefined && value !== '' && typeof value !== 'object') {
+                    const keyVariations = [
+                        key,
+                        key.toLowerCase().replace(/\s+/g, '_'),
+                        key.toLowerCase().replace(/\s+/g, '-'),
+                        key.toLowerCase(),
+                    ];
+                    
+                    keyVariations.forEach(keyVar => {
+                        const escaped = keyVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(`\\{\\{${escaped}\\}\\}`, 'gi'); // Case-insensitive
+                        itemHtml = itemHtml.replace(regex, String(value));
+                    });
+                }
+            });
+            
+            // Add data attributes to make items clickable
+            // Add data-collection-id and data-item-id to the first element of each item
+            itemHtml = itemHtml.replace(
+                /<(\w+)([^>]*)>/,
+                (match, tag, attrs) => {
+                    // Check if already has data attributes
+                    if (attrs.includes('data-collection-id') || attrs.includes('data-item-id')) return match;
+                    // Add data attributes for click handling
+                    return `<${tag}${attrs} data-collection-id="${collection.id}" data-item-id="${item.id}" data-item-index="${index}" style="cursor: pointer;">`;
+                }
+            );
+            
+            // Also make headings (h1-h6) clickable
+            itemHtml = itemHtml.replace(
+                /<(h[1-6])([^>]*)>(.*?)<\/\1>/gi,
+                (match, tag, attrs, content) => {
+                    // Check if already has data attributes
+                    if (attrs.includes('data-collection-id')) return match;
+                    return `<${tag}${attrs} data-collection-id="${collection.id}" data-item-id="${item.id}" style="cursor: pointer; text-decoration: underline;">${content}</${tag}>`;
+                }
+            );
+            
+            // Also make links clickable (if they don't have external hrefs)
+            itemHtml = itemHtml.replace(
+                /<a([^>]*)>(.*?)<\/a>/gi,
+                (match, attrs, content) => {
+                    // Skip if already has data attributes or is external link
+                    if (attrs.includes('data-collection-id') || attrs.includes('href="http')) return match;
+                    return `<a${attrs} data-collection-id="${collection.id}" data-item-id="${item.id}" style="cursor: pointer;">${content}</a>`;
+                }
+            );
             
             return itemHtml;
         }).join('\n');

@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../middleware/errorHandler.js';
@@ -523,6 +523,98 @@ export const renderCollectionItem = async (req: AuthRequest, res: Response, next
         });
         if (!item || item.collectionId !== collectionIdInt) {
             throw new ApiError('Collection item not found', 404);
+        }
+
+        // Get field labels for mapping
+        const fields = await prisma.field.findMany({
+            where: { collectionId: collectionIdInt },
+            select: { id: true, fieldLabel: true },
+        });
+
+        // Render
+        let renderedHtml = template.htmlContent;
+        const fieldValues = item.data as Record<string, any>;
+        fields.forEach((field) => {
+            const label = field.fieldLabel;
+            const labelLower = label.toLowerCase().replace(/\s+/g, '_');
+
+            const placeholderExact = `{{${label}}}`;
+            const placeholderLower = `{{${labelLower}}}`;
+
+            const escapedExact = placeholderExact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const escapedLower = placeholderLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            let value: any = undefined;
+            if (fieldValues[label] !== undefined) value = fieldValues[label];
+            if (value === undefined && fieldValues[labelLower] !== undefined) value = fieldValues[labelLower];
+            if (value === undefined && fieldValues[String((field as any).id)] !== undefined) value = fieldValues[String((field as any).id)];
+            if (value === undefined) {
+                const matchKey = Object.keys(fieldValues).find(
+                    (k) => k.toLowerCase().replace(/\s+/g, '_') === labelLower
+                );
+                if (matchKey) value = fieldValues[matchKey];
+            }
+
+            const replaceWith = String(value ?? '');
+            renderedHtml = renderedHtml.replace(new RegExp(escapedExact, 'g'), replaceWith);
+            renderedHtml = renderedHtml.replace(new RegExp(escapedLower, 'g'), replaceWith);
+        });
+
+        res.json({
+            success: true,
+            data: {
+                itemId: item.id,
+                data: item.data,
+                htmlContent: renderedHtml,
+                customCss: (template as any).customCss || '',
+                customJs: (template as any).customJs || '',
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Public endpoint - Render published collection item (no authentication required)
+export const renderPublicCollectionItem = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { collectionId, itemId } = req.params;
+
+        const collectionIdInt = parseInt(collectionId, 10);
+        const itemIdInt = parseInt(itemId, 10);
+        if (isNaN(collectionIdInt)) {
+            throw new ApiError('Invalid collection ID', 400);
+        }
+        if (isNaN(itemIdInt)) {
+            throw new ApiError('Invalid item ID', 400);
+        }
+
+        // Get collection
+        const collection = await prisma.collection.findUnique({ where: { id: collectionIdInt } });
+        if (!collection) {
+            throw new ApiError('Collection not found', 404);
+        }
+
+        // Get latest template for this collection
+        const template = await prisma.pageTemplate.findFirst({
+            where: { collectionId: collectionIdInt, authorId: collection.authorId },
+            orderBy: { updatedAt: 'desc' },
+        });
+        if (!template) {
+            throw new ApiError('No template found for this collection', 404);
+        }
+
+        // Get the item - only published items are accessible
+        const item = await prisma.collectionItem.findUnique({
+            where: { id: itemIdInt },
+        });
+        if (!item || item.collectionId !== collectionIdInt) {
+            throw new ApiError('Collection item not found', 404);
+        }
+        
+        // Only allow access to published items
+        if (item.status !== 'PUBLISHED') {
+            throw new ApiError('Item not found', 404);
         }
 
         // Get field labels for mapping

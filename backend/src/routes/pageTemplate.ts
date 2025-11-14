@@ -9,6 +9,7 @@ import {
     updatePageTemplate,
     renderCollectionItems,
     renderCollectionItem,
+    renderPublicCollectionItem,
 } from '../controller/pageTemplateController.js';
 
 const router = Router();
@@ -36,6 +37,9 @@ router.get('/renderCollection/:collectionId', authenticate, renderCollectionItem
 
 // GET /api/page-templates/renderItem/:collectionId/:itemId - Render a single item using latest template
 router.get('/renderItem/:collectionId/:itemId', authenticate, renderCollectionItem);
+
+// Public route - GET /api/page-templates/public/renderItem/:collectionId/:itemId - Render published item (no auth)
+router.get('/public/renderItem/:collectionId/:itemId', renderPublicCollectionItem);
 
 export default router;
 

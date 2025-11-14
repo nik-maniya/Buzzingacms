@@ -355,6 +355,7 @@ export function PublicPageTemplate({
         } else {
           currentSection += (currentSection ? "\n\n" : "") + part;
         }
+
       }
       if (currentSection) pageParts.push(currentSection);
       
@@ -384,6 +385,77 @@ export function PublicPageTemplate({
 
   // Container ref for intercepting link clicks in preview mode
   const contentContainerRef = useRef<HTMLDivElement | null>(null);
+  const [viewingItemDetail, setViewingItemDetail] = useState(false);
+  const [itemDetailContent, setItemDetailContent] = useState<{ html: string; css: string; js: string } | null>(null);
+  const [loadingItemDetail, setLoadingItemDetail] = useState(false);
+
+  // Handle collection item clicks to show item detail
+  useEffect(() => {
+    if (!contentContainerRef.current) return;
+
+    const container = contentContainerRef.current;
+    
+    const handleItemClick = async (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Find the closest element with collection/item data attributes
+      const clickableElement = target.closest('[data-collection-id][data-item-id]') as HTMLElement;
+      
+      if (!clickableElement) return;
+      
+      // Don't handle if it's a link that should navigate normally
+      if (target.closest('a[href^="http"]')) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const collectionId = clickableElement.dataset.collectionId;
+      const itemId = clickableElement.dataset.itemId;
+      
+      if (!collectionId || !itemId) return;
+      
+      setLoadingItemDetail(true);
+      setViewingItemDetail(true);
+      
+      try {
+        const apiBase = (import.meta as any).env?.VITE_API_URL
+          ? (import.meta as any).env.VITE_API_URL
+          : "/api";
+        
+        // Try to fetch item detail from public endpoint
+        const response = await fetch(`${apiBase}/page-templates/public/renderItem/${collectionId}/${itemId}`);
+        
+        if (response.ok) {
+          const res = await response.json();
+          if (res?.data) {
+            setItemDetailContent({
+              html: res.data.htmlContent || '',
+              css: res.data.customCss || '',
+              js: res.data.customJs || '',
+            });
+          } else {
+            console.error('No data in response');
+            setViewingItemDetail(false);
+          }
+        } else {
+          console.error('Failed to load item detail:', response.status);
+          setViewingItemDetail(false);
+        }
+      } catch (error) {
+        console.error('Error loading item detail:', error);
+        setViewingItemDetail(false);
+      } finally {
+        setLoadingItemDetail(false);
+      }
+    };
+
+    // Use event delegation on the container
+    container.addEventListener('click', handleItemClick, true);
+
+    return () => {
+      container.removeEventListener('click', handleItemClick, true);
+    };
+  }, []);
 
   // Intercept link clicks for client-side routing in preview mode
   useEffect(() => {
@@ -396,6 +468,9 @@ export function PublicPageTemplate({
       const anchor = target.closest('a[href]') as HTMLAnchorElement | null;
       
       if (!anchor) return;
+      
+      // Skip if this is a collection item click
+      if (target.closest('[data-collection-id][data-item-id]')) return;
       
       const href = anchor.getAttribute('href');
       if (!href) return;
@@ -477,7 +552,52 @@ export function PublicPageTemplate({
 
         {/* Body Section */}
         <main className="flex-1 w-full cms-page-body">
-          {bodyContent ? (
+          {viewingItemDetail ? (
+            <div className="w-full">
+              {loadingItemDetail ? (
+                <div className="text-center py-12">
+                  <div className="w-12 h-12 border-4 border-neutral-200 border-t-yellow-400 rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-neutral-600">Loading item...</p>
+                </div>
+              ) : itemDetailContent ? (
+                <div>
+                  <button
+                    onClick={() => {
+                      setViewingItemDetail(false);
+                      setItemDetailContent(null);
+                    }}
+                    className="mb-4 px-4 py-2 bg-neutral-200 hover:bg-neutral-300 rounded text-neutral-700"
+                    data-back-to-list
+                  >
+                    ← Back to List
+                  </button>
+                  {itemDetailContent.css && (
+                    <style dangerouslySetInnerHTML={{ __html: itemDetailContent.css }} />
+                  )}
+                  <div
+                    className={skipGlobalCss ? "" : "prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_p]:leading-relaxed"}
+                    dangerouslySetInnerHTML={{ __html: ensureHtmlRendering(itemDetailContent.html) }}
+                  />
+                  {itemDetailContent.js && (
+                    <script dangerouslySetInnerHTML={{ __html: itemDetailContent.js }} />
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-neutral-600 mb-4">Item not found</p>
+                  <button
+                    onClick={() => {
+                      setViewingItemDetail(false);
+                      setItemDetailContent(null);
+                    }}
+                    className="px-4 py-2 bg-neutral-200 hover:bg-neutral-300 rounded text-neutral-700"
+                  >
+                    ← Back to List
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : bodyContent ? (
             <div
               className={skipGlobalCss ? "" : "prose prose-neutral max-w-none [&_a]:text-blue-600 [&_a:hover]:text-blue-700 [&_img]:rounded-lg [&_img]:shadow-md [&_p]:leading-relaxed"}
               dangerouslySetInnerHTML={{ __html: ensureHtmlRendering(bodyContent) }}
