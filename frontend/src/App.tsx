@@ -14,6 +14,12 @@ import { Login } from "./components/Login";
 import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
+  // Check if we're accessing via the custom domain (public website)
+  const isPublicDomain = () => {
+    const hostname = window.location.hostname;
+    return hostname === 'mycms.test' || hostname.includes('.test') || hostname.includes('.local');
+  };
+
   // Check localStorage on mount to restore authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     const token = localStorage.getItem("token");
@@ -74,9 +80,8 @@ export default function App() {
 
   // Sync URL with state changes
   useEffect(() => {
-    if (!isAuthenticated) {
-      // Clear URL when logged out
-      window.history.replaceState({}, "", "/");
+    // Don't sync URL for public domain or when not authenticated
+    if (isPublicDomain() || !isAuthenticated) {
       return;
     }
     
@@ -247,8 +252,8 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
-  // Show public pages if not authenticated (visitor accessing the domain)
-  if (!isAuthenticated) {
+  // Show public pages ONLY if accessing via custom domain (mycms.test)
+  if (isPublicDomain()) {
     return (
       <>
         <PublicPage slug={publicPageSlug} onNavigate={(path) => {
@@ -257,6 +262,17 @@ export default function App() {
           const newSlug = path === '/' || path === '' ? 'home' : path.replace(/^\//, '');
           setPublicPageSlug(newSlug);
         }} />
+        <Toaster />
+      </>
+    );
+  }
+
+  // For localhost and other domains, show CMS
+  // Show login if not authenticated, dashboard if authenticated
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Login onLogin={handleLogin} />
         <Toaster />
       </>
     );
