@@ -174,6 +174,14 @@ export const domainAPI = {
     value: string;
     ttl?: number;
   }) => api.post('/domain/createDNSRecord', recordData),
+  
+  // Update DNS record
+  updateDNSRecord: (recordId: number, recordData: {
+    type?: string;
+    name?: string;
+    value?: string;
+    ttl?: number;
+  }) => api.put(`/domain/updateDNSRecord/${recordId}`, recordData),
 };
 
 // Health check

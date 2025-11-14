@@ -26,7 +26,7 @@ import { domainAPI } from "../services/api";
 
 interface DNSRecord {
   id: string;
-  type: "A" | "CNAME" | "TXT" | "MX";
+  type: "A" | "CNAME" | "TXT" | "MX" | "NS" | "SRV";
   name: string;
   value: string;
   ttl: number;
@@ -150,6 +150,8 @@ export function DomainSettings() {
   const [isAddDomainOpen, setIsAddDomainOpen] = useState(false);
   const [isEditDomainOpen, setIsEditDomainOpen] = useState(false);
   const [isAddRecordOpen, setIsAddRecordOpen] = useState(false);
+  const [isEditRecordOpen, setIsEditRecordOpen] = useState(false);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
 
   // Form states for adding domain
   const [domainForm, setDomainForm] = useState({
@@ -320,6 +322,7 @@ export function DomainSettings() {
           ttl: 3600,
         });
         setIsAddRecordOpen(false);
+        setEditingRecordId(null);
       } else {
         toast.error(response.data.message || "Failed to add DNS record");
       }
@@ -330,6 +333,95 @@ export function DomainSettings() {
         "Failed to add DNS record";
       toast.error(errorMessage);
       console.error("Error adding DNS record:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditDNSRecord = (record: DNSRecord) => {
+    setEditingRecordId(record.id);
+    setDnsRecordForm({
+      type: record.type,
+      name: record.name,
+      value: record.value,
+      ttl: record.ttl,
+    });
+    setIsEditRecordOpen(true);
+  };
+
+  const handleUpdateDNSRecord = async () => {
+    if (!editingRecordId || !currentDomain) {
+      return;
+    }
+
+    if (!dnsRecordForm.name.trim() || !dnsRecordForm.value.trim()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    // Validate based on record type
+    if (dnsRecordForm.type === "A") {
+      const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+      if (!ipRegex.test(dnsRecordForm.value.trim())) {
+        toast.error("Please enter a valid IPv4 address for A record");
+        return;
+      }
+    }
+
+    if (dnsRecordForm.type === "CNAME" && !dnsRecordForm.value.includes(".")) {
+      toast.error("Please enter a valid domain name for CNAME record");
+      return;
+    }
+
+    if (dnsRecordForm.ttl < 60 || dnsRecordForm.ttl > 86400) {
+      toast.error("TTL must be between 60 and 86400 seconds");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await domainAPI.updateDNSRecord(parseInt(editingRecordId, 10), {
+        type: dnsRecordForm.type,
+        name: dnsRecordForm.name.trim(),
+        value: dnsRecordForm.value.trim(),
+        ttl: dnsRecordForm.ttl,
+      });
+
+      if (response.data.success) {
+        toast.success(response.data.message || "DNS record updated successfully");
+        
+        // Refresh domain data to get updated DNS records
+        try {
+          const getResponse = await domainAPI.getDomain();
+          if (getResponse.data.success) {
+            const apiDomain = getResponse.data.data as DomainApiResponse | null;
+            if (apiDomain && apiDomain.dnsRecords) {
+              const mappedRecords = apiDomain.dnsRecords.map(mapApiDnsRecordToDnsRecord);
+              setDnsRecords(mappedRecords);
+            }
+          }
+        } catch (refreshError) {
+          console.error("Error refreshing DNS records:", refreshError);
+        }
+
+        setDnsRecordForm({
+          type: "A",
+          name: "",
+          value: "",
+          ttl: 3600,
+        });
+        setEditingRecordId(null);
+        setIsEditRecordOpen(false);
+      } else {
+        toast.error(response.data.message || "Failed to update DNS record");
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to update DNS record";
+      toast.error(errorMessage);
+      console.error("Error updating DNS record:", error);
     } finally {
       setIsLoading(false);
     }
@@ -574,6 +666,15 @@ export function DomainSettings() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-8 w-8 p-0 text-neutral-600 hover:text-neutral-900"
+                            onClick={() => handleEditDNSRecord(record)}
+                            title="Edit record"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => handleDeleteDNSRecord(record.id)}
                             title="Delete record"
@@ -703,7 +804,13 @@ export function DomainSettings() {
       </Dialog>
 
       {/* Add DNS Record Dialog */}
-      <Dialog open={isAddRecordOpen} onOpenChange={setIsAddRecordOpen}>
+      <Dialog open={isAddRecordOpen} onOpenChange={(open) => {
+        setIsAddRecordOpen(open);
+        if (!open) {
+          setDnsRecordForm({ type: "A", name: "", value: "", ttl: 3600 });
+          setEditingRecordId(null);
+        }
+      }}>
         <DialogContent className="sm:max-w-[600px]" style={{ width: "600px" }}>
           <DialogHeader>
             <DialogTitle>Add DNS Record</DialogTitle>
@@ -716,7 +823,7 @@ export function DomainSettings() {
               <Label htmlFor="record-type">Record Type</Label>
               <Select
                 value={dnsRecordForm.type}
-                onValueChange={(value: "A" | "CNAME" | "TXT" | "MX") =>
+                onValueChange={(value: "A" | "CNAME" | "TXT" | "MX" | "NS" | "SRV") =>
                   setDnsRecordForm({ ...dnsRecordForm, type: value })
                 }
               >
@@ -804,8 +911,129 @@ export function DomainSettings() {
             >
               Cancel
             </Button>
-            <Button onClick={handleAddDNSRecord}>
-              Add Record
+            <Button onClick={handleAddDNSRecord} disabled={isLoading}>
+              {isLoading ? "Adding..." : "Add Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit DNS Record Dialog */}
+      <Dialog open={isEditRecordOpen} onOpenChange={(open) => {
+        setIsEditRecordOpen(open);
+        if (!open) {
+          setDnsRecordForm({ type: "A", name: "", value: "", ttl: 3600 });
+          setEditingRecordId(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[600px]" style={{ width: "600px" }}>
+          <DialogHeader>
+            <DialogTitle>Edit DNS Record</DialogTitle>
+            <DialogDescription>
+              Update DNS record for {currentDomain?.name || "your domain"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-record-type">Record Type</Label>
+              <Select
+                value={dnsRecordForm.type}
+                onValueChange={(value: "A" | "CNAME" | "TXT" | "MX" | "NS" | "SRV") =>
+                  setDnsRecordForm({ ...dnsRecordForm, type: value })
+                }
+              >
+                <SelectTrigger id="edit-record-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">A (IPv4 Address)</SelectItem>
+                  <SelectItem value="CNAME">CNAME (Canonical Name)</SelectItem>
+                  <SelectItem value="TXT">TXT (Text Record)</SelectItem>
+                  <SelectItem value="MX">MX (Mail Exchange)</SelectItem>
+                  <SelectItem value="NS">NS (Name Server)</SelectItem>
+                  <SelectItem value="SRV">SRV (Service Record)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-record-name">Name</Label>
+              <Input
+                id="edit-record-name"
+                placeholder={dnsRecordForm.type === "A" ? "@ or subdomain" : "Record name"}
+                value={dnsRecordForm.name}
+                onChange={(e) => setDnsRecordForm({ ...dnsRecordForm, name: e.target.value })}
+              />
+              <p className="text-xs text-neutral-500">
+                Use @ for root domain, or enter a subdomain (e.g., www, mail)
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-record-value">Value</Label>
+              <Input
+                id="edit-record-value"
+                placeholder={
+                  dnsRecordForm.type === "A"
+                    ? "192.168.1.1"
+                    : dnsRecordForm.type === "CNAME"
+                    ? "example.com"
+                    : dnsRecordForm.type === "TXT"
+                    ? "v=spf1 include:_spf.example.com ~all"
+                    : dnsRecordForm.type === "MX"
+                    ? "mail.example.com"
+                    : dnsRecordForm.type === "NS"
+                    ? "ns1.example.com"
+                    : "service.example.com"
+                }
+                value={dnsRecordForm.value}
+                onChange={(e) => setDnsRecordForm({ ...dnsRecordForm, value: e.target.value })}
+              />
+              <p className="text-xs text-neutral-500">
+                {dnsRecordForm.type === "A" && "Enter an IPv4 address (e.g., 192.168.1.1)"}
+                {dnsRecordForm.type === "CNAME" && "Enter a domain name (e.g., example.com)"}
+                {dnsRecordForm.type === "TXT" && "Enter text content (e.g., SPF, DKIM records)"}
+                {dnsRecordForm.type === "MX" && "Enter mail server hostname"}
+                {dnsRecordForm.type === "NS" && "Enter name server hostname"}
+                {dnsRecordForm.type === "SRV" && "Enter service record value"}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-record-ttl">TTL (Time To Live)</Label>
+              <Input
+                id="edit-record-ttl"
+                type="number"
+                min="60"
+                max="86400"
+                value={dnsRecordForm.ttl}
+                onChange={(e) =>
+                  setDnsRecordForm({ ...dnsRecordForm, ttl: parseInt(e.target.value) || 3600 })
+                }
+              />
+              <p className="text-xs text-neutral-500">
+                Time in seconds (60-86400). Default is 3600 (1 hour).
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditRecordOpen(false);
+                setDnsRecordForm({
+                  type: "A",
+                  name: "",
+                  value: "",
+                  ttl: 3600,
+                });
+                setEditingRecordId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateDNSRecord} disabled={isLoading}>
+              {isLoading ? "Updating..." : "Update Record"}
             </Button>
           </DialogFooter>
         </DialogContent>
