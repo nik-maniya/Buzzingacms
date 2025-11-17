@@ -48,9 +48,10 @@ export function PagePreview({
   const [viewingItemDetail, setViewingItemDetail] = useState(false);
   const eventHandledRef = useRef<{ collectionId: number; itemId: number; time: number } | null>(null);
 
+  // Use relative URL so domain is automatically included
   const apiBase = (import.meta as any).env?.VITE_API_URL
     ? (import.meta as any).env.VITE_API_URL
-    : "http://mycms.test";
+    : "/api";
 
   // Function to open item detail inline
   const openItemDetail = async (collectionId: number, itemId: number) => {
@@ -77,7 +78,7 @@ export function PagePreview({
 
     try {
       const response = await fetch(
-        `${apiBase}/api/page-templates/renderItem/${collectionId}/${itemId}`,
+        `${apiBase}/page-templates/renderItem/${collectionId}/${itemId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const res = await response.json();

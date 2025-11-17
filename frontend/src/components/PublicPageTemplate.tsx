@@ -63,11 +63,12 @@ export function PublicPageTemplate({
     const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
     if (!token) return;
 
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
-    fetch(`${apiBase}/api/menus/getAllmenu`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${apiBase}/menus/getAllmenu`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
         const res = await r.json();
         if (!r.ok) throw new Error(res?.message || "Failed to load menus");

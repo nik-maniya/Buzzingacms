@@ -53,11 +53,12 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
       return;
     }
 
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
-    fetch(`${apiBase}/api/pages`, {
+    fetch(`${apiBase}/pages`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (r) => {
@@ -80,12 +81,13 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
   const handleSetHome = async (pageId: string) => {
     const token = localStorage.getItem("token");
     if (!token) return;
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
     try {
-      const res = await fetch(`${apiBase}/api/pages/${pageId}`, {
+      const res = await fetch(`${apiBase}/pages/${pageId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -104,12 +106,13 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
   const handleDelete = async (pageId: string) => {
     const token = localStorage.getItem("token");
     if (!token) return;
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
     try {
-      const res = await fetch(`${apiBase}/api/pages/${pageId}`, {
+      const res = await fetch(`${apiBase}/pages/${pageId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,

@@ -43,13 +43,14 @@ export function Menus() {
         return;
       }
 
+      // Use relative URL so domain is automatically included
       const apiBase = (import.meta as any).env?.VITE_API_URL
         ? (import.meta as any).env.VITE_API_URL
-        : "http://mycms.test";
+        : "/api";
 
       try {
         // Always load the list initially to avoid calling getMenuById with null
-        const resp = await fetch(`${apiBase}/api/menus/getAllmenu`, {
+        const resp = await fetch(`${apiBase}/menus/getAllmenu`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const json = await resp.json();
@@ -99,9 +100,10 @@ export function Menus() {
       return;
     }
 
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
     const menuData = {
       name: "Global Menu",
@@ -124,7 +126,7 @@ export function Menus() {
       let response;
       if (menuId) {
         // Update existing menu
-        response = await fetch(`${apiBase}/api/menus/updateMenu/${menuId}`, {
+        response = await fetch(`${apiBase}/menus/updateMenu/${menuId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -134,7 +136,7 @@ export function Menus() {
         });
       } else {
         // Create new menu
-        response = await fetch(`${apiBase}/api/menus/cerateMenu`, {
+        response = await fetch(`${apiBase}/menus/cerateMenu`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

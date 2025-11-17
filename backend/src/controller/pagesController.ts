@@ -489,29 +489,33 @@ export const getPublicPageBySlug = async (req: Request, res: Response, next: Nex
             throw new ApiError('Slug is required', 400);
         }
 
+        // Extract domain from request hostname
         const hostname = req.headers.host || (req as any).hostname || '';
-        const domainName = hostname.split(':')[0];
+        const domainName = hostname.split(':')[0]; // Remove port if present
         
-        let authorId: number | null = null;
-        
-        if (domainName) {
-            const domain = await prisma.domain.findUnique({
-                where: { domainName },
-            });
-            
-            if (domain) {
-                authorId = domain.authorId;
-            } else {
-                console.warn(`No domain found for hostname: ${domainName}. Pages may not be filtered correctly.`);
-            }
+        // Domain is required - must be configured in database
+        if (!domainName || domainName === 'localhost' || domainName === '127.0.0.1') {
+            throw new ApiError('Domain not found in request. Please access the website using a configured domain (e.g., mycms.test).', 400);
         }
+        
+        // Find domain in database
+        const domain = await prisma.domain.findUnique({
+            where: { domainName },
+        });
+        
+        if (!domain) {
+            throw new ApiError(`Domain "${domainName}" is not configured in the system. Please configure this domain in the CMS.`, 404);
+        }
+        
+        // Get the user ID who owns this domain - all content will be filtered by this
+        const authorId = domain.authorId;
 
         if (slug === '') {
             const homePage = await prisma.page.findFirst({
                 where: {
                     isHomePage: true,
                     status: 'PUBLISHED',
-                    ...(authorId && { authorId }),
+                    authorId: authorId, // Filter by domain owner
                 },
                 include: {
                     author: {
@@ -549,7 +553,7 @@ export const getPublicPageBySlug = async (req: Request, res: Response, next: Nex
                 where: {
                     slug: 'home',
                     status: 'PUBLISHED',
-                    ...(authorId && { authorId }),
+                    authorId: authorId, // Filter by domain owner
                 },
                 include: {
                     author: {
@@ -588,7 +592,7 @@ export const getPublicPageBySlug = async (req: Request, res: Response, next: Nex
                 where: {
                     slug: 'home',
                     status: 'PUBLISHED',
-                    ...(authorId && { authorId }),
+                    authorId: authorId, // Filter by domain owner
                 },
                 include: {
                     author: {
@@ -626,7 +630,7 @@ export const getPublicPageBySlug = async (req: Request, res: Response, next: Nex
             where: {
                 slug: slug,
                 status: 'PUBLISHED',
-                ...(authorId && { authorId }),
+                authorId: authorId, // Filter by domain owner
             },
             include: {
                 author: {

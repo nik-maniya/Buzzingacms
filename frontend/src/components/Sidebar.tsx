@@ -53,11 +53,12 @@ export function Sidebar({ activeView, onViewChange, onLogout }: SidebarProps) {
     const token = localStorage.getItem("token");
     if (!token) return;
 
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
-    fetch(`${apiBase}/api/auth/me`, {
+    fetch(`${apiBase}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (r) => {

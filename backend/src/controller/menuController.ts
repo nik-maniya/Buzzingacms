@@ -255,9 +255,32 @@ export const getAllMenus = async (req: AuthRequest, res: Response, next: NextFun
 // Public endpoint - Get public menus (no authentication required)
 export const getPublicMenus = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        // Get all menus (in a multi-user system, you might filter by domain)
-        // For now, we'll get the first global menu or header/footer menu
+        // Extract domain from request hostname
+        const hostname = req.headers.host || (req as any).hostname || '';
+        const domainName = hostname.split(':')[0]; // Remove port if present
+        
+        // Domain is required - must be configured in database
+        if (!domainName || domainName === 'localhost' || domainName === '127.0.0.1') {
+            throw new ApiError('Domain not found in request. Please access the website using a configured domain (e.g., mycms.test).', 400);
+        }
+        
+        // Find domain in database
+        const domain = await prisma.domain.findUnique({
+            where: { domainName },
+        });
+        
+        if (!domain) {
+            throw new ApiError(`Domain "${domainName}" is not configured in the system. Please configure this domain in the CMS.`, 404);
+        }
+        
+        // Get the user ID who owns this domain - all menus will be filtered by this
+        const authorId = domain.authorId;
+        
+        // Get menus filtered by domain owner
         const menus = await prisma.menu.findMany({
+            where: {
+                authorId: authorId, // Filter by domain owner
+            },
             orderBy: {
                 updatedAt: 'desc',
             },

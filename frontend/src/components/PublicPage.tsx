@@ -34,6 +34,9 @@ export function PublicPage({ slug, onNavigate }: PublicPageProps) {
         // If slug is empty or undefined, use empty string to show the page marked as home page
         // Use 'home' only when explicitly navigating to /home
         const pageSlug = slug === 'home' ? 'home' : (slug || '');
+        
+        // Use relative URL so the domain from window.location is automatically included
+        // The backend will extract the domain from req.headers.host
         const apiBase = (import.meta as any).env?.VITE_API_URL
           ? (import.meta as any).env.VITE_API_URL
           : "/api";
@@ -41,16 +44,39 @@ export function PublicPage({ slug, onNavigate }: PublicPageProps) {
         // The backend will find the page marked as home page when slug is empty
         // For 'home' slug, it will show the page with slug 'home'
         // Use special endpoint for root path (empty slug)
+        // Using relative URL ensures the current domain is sent to backend
         const pageUrl = pageSlug === '' 
           ? `${apiBase}/pages/public` 
           : `${apiBase}/pages/public/${pageSlug}`;
-        const pageResponse = await fetch(pageUrl);
+        
+        // Fetch with current origin to ensure domain is included in headers
+        const pageResponse = await fetch(pageUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          // Don't include credentials for public pages
+          credentials: 'omit',
+        });
         
         if (!pageResponse.ok) {
+          // Try to get error message from response
+          let errorMessage = "Failed to load page";
+          try {
+            const errorData = await pageResponse.json();
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            }
+          } catch {
+            // If response is not JSON, use default message
+          }
+          
           if (pageResponse.status === 404) {
-            setError("Page not found");
+            setError(errorMessage || "Page not found");
+          } else if (pageResponse.status === 400) {
+            setError(errorMessage || "Invalid request. Please access using a configured domain.");
           } else {
-            setError("Failed to load page");
+            setError(errorMessage);
           }
           setLoading(false);
           return;
@@ -74,7 +100,14 @@ export function PublicPage({ slug, onNavigate }: PublicPageProps) {
         let footerJs = '';
         
         try {
-          const menuResponse = await fetch(`${apiBase}/menus/public`);
+          // Fetch menus using relative URL so domain is included
+          const menuResponse = await fetch(`${apiBase}/menus/public`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'omit',
+          });
           if (menuResponse.ok) {
             const menuJson = await menuResponse.json();
             const menu = menuJson.data;

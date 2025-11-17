@@ -37,9 +37,10 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
   const [loadingItemDetail, setLoadingItemDetail] = useState(false);
   const [viewingItemDetail, setViewingItemDetail] = useState(false);
 
+  // Use relative URL so domain is automatically included
   const apiBase = (import.meta as any).env?.VITE_API_URL
     ? (import.meta as any).env.VITE_API_URL
-    : "http://mycms.test";
+    : "/api";
 
   // Function to open item detail inline
   const openItemDetail = async (collectionId: number, itemId: number) => {
@@ -51,7 +52,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
 
     try {
       const response = await fetch(
-        `${apiBase}/api/page-templates/renderItem/${collectionId}/${itemId}`,
+        `${apiBase}/page-templates/renderItem/${collectionId}/${itemId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const res = await response.json();
@@ -120,7 +121,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
       return;
     }
 
-    fetch(`${apiBase}/api/collections/with-items`, {
+    fetch(`${apiBase}/collections/with-items`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (r) => {
@@ -150,7 +151,7 @@ export function PagesLivePreview({ open, onClose }: PagesLivePreviewProps) {
       return;
     }
     setLoading(true);
-    fetch(`${apiBase}/api/pages`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${apiBase}/pages`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
         const res = await r.json();
         if (!r.ok) throw new Error(res?.message || "Failed to load pages");

@@ -18,18 +18,19 @@ export function Login({ onLogin }: LoginProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(
-        (import.meta as any).env?.VITE_API_URL
-          ? `${(import.meta as any).env.VITE_API_URL}/api/auth/login`
-          : "http://mycms.test/api/auth/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-        }
-      );
+      // Use relative URL so it works with any domain
+      // For admin login, we use localhost or the current domain
+      const apiBase = (import.meta as any).env?.VITE_API_URL
+        ? (import.meta as any).env.VITE_API_URL
+        : "/api";
+      
+      const response = await fetch(`${apiBase}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
       const data = await response.json();
 

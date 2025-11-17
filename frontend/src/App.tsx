@@ -14,10 +14,19 @@ import { Login } from "./components/Login";
 import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
-  // Check if we're accessing via the custom domain (public website)
+  // Check if we're accessing via a custom domain (public website)
+  // Exclude localhost and 127.0.0.1 - these should show CMS admin
   const isPublicDomain = () => {
     const hostname = window.location.hostname;
-    return hostname === 'mycms.test' || hostname.includes('.test') || hostname.includes('.local');
+    // Show public website for any domain that's not localhost or 127.0.0.1
+    // This allows any domain configured in host file (mycms.test, mycms2.test, etc.)
+    return hostname !== 'localhost' && 
+           hostname !== '127.0.0.1' && 
+           hostname !== '0.0.0.0' &&
+           (hostname.includes('.test') || 
+            hostname.includes('.local') || 
+            hostname.includes('.') || 
+            hostname.length > 0);
   };
 
   // Check localStorage on mount to restore authentication state

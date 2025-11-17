@@ -45,11 +45,12 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     const token = localStorage.getItem("token");
     if (!token) return;
 
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
-    fetch(`${apiBase}/api/collections/with-items`, {
+    fetch(`${apiBase}/collections/with-items`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (r) => {
@@ -66,16 +67,17 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     const token = localStorage.getItem("token");
     if (!token) return;
 
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
     setLoadingItemDetail(true);
     setViewingItemDetailInPreview(true);
 
     try {
       const response = await fetch(
-        `${apiBase}/api/page-templates/renderItem/${collectionId}/${itemId}`,
+        `${apiBase}/page-templates/renderItem/${collectionId}/${itemId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const res = await response.json();
@@ -147,12 +149,13 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     const token = localStorage.getItem("token");
     if (!token) return;
 
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
     setIsLoading(true);
-    fetch(`${apiBase}/api/pages/${pageId}`, {
+    fetch(`${apiBase}/pages/${pageId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (r) => {
@@ -182,15 +185,16 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
     const token = localStorage.getItem("token");
     if (!token) return;
 
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
     const normalizedSlug = slug.startsWith("/") ? slug.slice(1) : slug;
 
     try {
       const isNew = !pageId || pageId === "new";
-      const url = isNew ? `${apiBase}/api/pages` : `${apiBase}/api/pages/${pageId}`;
+      const url = isNew ? `${apiBase}/pages` : `${apiBase}/pages/${pageId}`;
       const method = isNew ? "POST" : "PUT";
       const res = await fetch(url, {
         method,
@@ -229,11 +233,12 @@ export function PageEditor({ pageId, onBack }: PageEditorProps) {
       setPreviewFooterHtml("");
       return;
     }
+    // Use relative URL so domain is automatically included
     const apiBase = (import.meta as any).env?.VITE_API_URL
       ? (import.meta as any).env.VITE_API_URL
-      : "http://mycms.test";
+      : "/api";
 
-    fetch(`${apiBase}/api/pages`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${apiBase}/pages`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
         const res = await r.json();
         if (!r.ok) throw new Error(res?.message || "Failed to load pages");
