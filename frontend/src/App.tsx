@@ -228,11 +228,12 @@ export default function App() {
   };
 
   // State for public page navigation
-  // When user first visits, always show the home page (slug 'home')
+  // When user first visits root path, use empty string to show page marked as home page
   const [publicPageSlug, setPublicPageSlug] = useState(() => {
     const path = window.location.pathname;
-    // Convert root path to 'home' so backend can find the page marked as home page
-    return path === '/' || path === '' ? 'home' : path.replace(/^\//, '');
+    // Use empty string for root path (backend will find page marked as home page)
+    // Keep 'home' only when explicitly navigating to /home
+    return path === '/' || path === '' ? '' : path.replace(/^\//, '');
   });
 
   // Handle browser navigation for public pages
@@ -240,7 +241,8 @@ export default function App() {
     if (!isAuthenticated) {
       const handlePublicNavigation = () => {
         const currentPath = window.location.pathname;
-        const newSlug = currentPath === '/' || currentPath === '' ? 'home' : currentPath.replace(/^\//, '');
+        // Use empty string for root path, keep actual path for others
+        const newSlug = currentPath === '/' || currentPath === '' ? '' : currentPath.replace(/^\//, '');
         setPublicPageSlug(newSlug);
       };
       
@@ -259,7 +261,8 @@ export default function App() {
         <PublicPage slug={publicPageSlug} onNavigate={(path) => {
           // Update URL and state
           window.history.pushState({}, '', path);
-          const newSlug = path === '/' || path === '' ? 'home' : path.replace(/^\//, '');
+          // Use empty string for root path, keep actual path for others
+          const newSlug = path === '/' || path === '' ? '' : path.replace(/^\//, '');
           setPublicPageSlug(newSlug);
         }} />
         <Toaster />

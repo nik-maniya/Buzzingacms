@@ -31,14 +31,20 @@ export function PublicPage({ slug, onNavigate }: PublicPageProps) {
 
       try {
         // Fetch page data
-        // If slug is empty or undefined, use 'home' to show the home page
-        const pageSlug = slug || 'home';
+        // If slug is empty or undefined, use empty string to show the page marked as home page
+        // Use 'home' only when explicitly navigating to /home
+        const pageSlug = slug === 'home' ? 'home' : (slug || '');
         const apiBase = (import.meta as any).env?.VITE_API_URL
           ? (import.meta as any).env.VITE_API_URL
           : "/api";
         
-        // The backend will find the page marked as home page when slug is 'home'
-        const pageResponse = await fetch(`${apiBase}/pages/public/${pageSlug}`);
+        // The backend will find the page marked as home page when slug is empty
+        // For 'home' slug, it will show the page with slug 'home'
+        // Use special endpoint for root path (empty slug)
+        const pageUrl = pageSlug === '' 
+          ? `${apiBase}/pages/public` 
+          : `${apiBase}/pages/public/${pageSlug}`;
+        const pageResponse = await fetch(pageUrl);
         
         if (!pageResponse.ok) {
           if (pageResponse.status === 404) {

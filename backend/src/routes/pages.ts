@@ -7,6 +7,12 @@ import { createPage, deletePage, getAllPages, getPageById, updatePage, getPublic
 const router = Router();
 
 // Public route - Get published page by slug (no authentication)
+// Special route for root path (empty slug) - shows page marked as home page
+router.get('/public', (req: any, res, next) => {
+    // Set slug to empty string for root path
+    req.params = { slug: '' };
+    getPublicPageBySlug(req, res, next);
+});
 router.get('/public/:slug', getPublicPageBySlug);
 
 // GET /api/pages - Get all pages
