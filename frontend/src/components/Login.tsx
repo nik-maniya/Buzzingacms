@@ -103,6 +103,9 @@ export function Login({ onLogin }: LoginProps) {
               <p className="text-sm text-neutral-900">
                 <span className="text-neutral-500">Note:</span> This is a demo account. Please use the credentials above to login.
               </p>
+              <p className="text-sm text-neutral-900">
+                <span className="text-neutral-500">Note:</span> if you need any help.
+              </p>
             </div>
           </div>
         </div>
