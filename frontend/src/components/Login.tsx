@@ -100,6 +100,9 @@ export function Login({ onLogin }: LoginProps) {
               <p className="text-sm text-neutral-900">
                 <span className="text-neutral-500">Password:</span> buzzinga2025
               </p>
+              <p className="text-sm text-neutral-900">
+                <span className="text-neutral-500">Note:</span> If you need any help, please contact the admin.
+              </p>
             </div>
           </div>
         </div>
