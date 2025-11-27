@@ -109,6 +109,9 @@ export function Login({ onLogin }: LoginProps) {
               <p className="text-sm text-neutral-900">
                 <span className="text-neutral-500">Note:</span> Please contact the admin for any assistance.
               </p>
+              <p className="text-sm text-neutral-900">
+                <span className="text-neutral-500">Note:</span> If you need any help, please contact the admin.
+              </p>
             </div>
           </div>
         </div>
