@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { PagesList } from "./components/PagesList";
 import { PageEditor } from "./components/PageEditor";
@@ -9,22 +9,143 @@ import { Redirects } from "./components/Redirects";
 import { DomainSettings } from "./components/DomainSettings";
 import { Forms } from "./components/Forms";
 import { PublicPageDemo } from "./components/PublicPageDemo";
+import { PublicPage } from "./components/PublicPage";
 import { Login } from "./components/Login";
 import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeView, setActiveView] = useState("pages");
-  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  // Check if we're accessing via a custom domain (public website)
+  // Exclude localhost and 127.0.0.1 - these should show CMS admin
+  const isPublicDomain = () => {
+    const hostname = window.location.hostname;
+    // Show public website for any domain that's not localhost or 127.0.0.1
+    // This allows any domain configured in host file (mycms.test, mycms2.test, etc.)
+    return hostname !== 'localhost' && 
+           hostname !== '127.0.0.1' && 
+           hostname !== '0.0.0.0' &&
+           (hostname.includes('.test') || 
+            hostname.includes('.local') || 
+            hostname.includes('.') || 
+            hostname.length > 0);
+  };
+
+  // Check localStorage on mount to restore authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    const token = localStorage.getItem("token");
+    return !!token;
+  });
+  
+  // Parse URL to get initial view and pageId
+  const getInitialStateFromURL = () => {
+    try {
+      const path = window.location.pathname;
+      const searchParams = new URLSearchParams(window.location.search);
+      
+      // Map URL paths to views
+      const viewMap: Record<string, string> = {
+        "/pages": "pages",
+        "/dynamic-pages": "dynamic-pages",
+        "/media": "media",
+        "/menus": "menus",
+        "/redirects": "redirects",
+        "/domain": "domain",
+        "/forms": "forms",
+        "/public-preview": "public-preview",
+      };
+      
+      let view = "pages";
+      let pageId: string | null = null;
+      
+      // Check if path matches a view
+      if (path === "/" || path === "") {
+        view = "pages";
+      } else if (path.startsWith("/pages/")) {
+        view = "pages";
+        const pathParts = path.split("/");
+        if (pathParts.length > 2) {
+          // Extract slug from URL (everything after /pages/)
+          pageId = pathParts.slice(2).join("/"); // Join in case slug has slashes
+        }
+      } else if (viewMap[path]) {
+        view = viewMap[path];
+      }
+      
+      // Also check search params for pageSlug (for backward compatibility)
+      if (searchParams.has("pageSlug")) {
+        pageId = searchParams.get("pageSlug");
+      } else if (searchParams.has("pageId")) {
+        pageId = searchParams.get("pageId");
+      }
+      
+      return { view, pageId };
+    } catch {
+      return { view: "pages", pageId: null };
+    }
+  };
+  
+  const initialState = getInitialStateFromURL();
+  const [activeView, setActiveView] = useState(initialState.view);
+  const [editingPageId, setEditingPageId] = useState<string | null>(initialState.pageId);
+
+  // Sync URL with state changes
+  useEffect(() => {
+    // Don't sync URL for public domain or when not authenticated
+    if (isPublicDomain() || !isAuthenticated) {
+      return;
+    }
+    
+    let path = "/";
+    let searchParams = new URLSearchParams();
+    
+    // Map views to URL paths
+    const viewToPath: Record<string, string> = {
+      "pages": "/pages",
+      "dynamic-pages": "/dynamic-pages",
+      "media": "/media",
+      "menus": "/menus",
+      "redirects": "/redirects",
+      "domain": "/domain",
+      "forms": "/forms",
+      "public-preview": "/public-preview",
+    };
+    
+    if (viewToPath[activeView]) {
+      path = viewToPath[activeView];
+    }
+    
+    // Add page slug to URL if editing a page
+    if (activeView === "pages" && editingPageId) {
+      // Use slug in URL path
+      path = `/pages/${editingPageId}`;
+    } else if (editingPageId) {
+      searchParams.set("pageSlug", editingPageId);
+    }
+    
+    const url = path + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+    window.history.replaceState({}, "", url);
+  }, [activeView, editingPageId, isAuthenticated]);
 
   const handleLogin = () => {
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setIsAuthenticated(false);
     setActiveView("pages");
     setEditingPageId(null);
+    window.history.replaceState({}, "", "/");
+  };
+
+  const handleViewChange = (view: string) => {
+    // Clear editingPageId when switching views
+    // If switching to pages from pages, clear to show list
+    // If switching away from pages, also clear
+    if (view !== "pages" || (view === "pages" && editingPageId)) {
+      setEditingPageId(null);
+    }
+    setActiveView(view);
   };
 
   const handleEditPage = (pageId: string) => {
@@ -38,6 +159,57 @@ export default function App() {
   const handleBackToList = () => {
     setEditingPageId(null);
   };
+  
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const path = window.location.pathname;
+        const searchParams = new URLSearchParams(window.location.search);
+        
+        const viewMap: Record<string, string> = {
+          "/pages": "pages",
+          "/dynamic-pages": "dynamic-pages",
+          "/media": "media",
+          "/menus": "menus",
+          "/redirects": "redirects",
+          "/domain": "domain",
+          "/forms": "forms",
+          "/public-preview": "public-preview",
+        };
+        
+        let view = "pages";
+        let pageId: string | null = null;
+        
+        if (path === "/" || path === "") {
+          view = "pages";
+        } else if (path.startsWith("/pages/")) {
+          view = "pages";
+          const pathParts = path.split("/");
+          if (pathParts.length > 2) {
+            pageId = pathParts[2];
+          }
+        } else if (viewMap[path]) {
+          view = viewMap[path];
+        }
+        
+        if (searchParams.has("pageSlug")) {
+          pageId = searchParams.get("pageSlug");
+        } else if (searchParams.has("pageId")) {
+          pageId = searchParams.get("pageId");
+        }
+        
+        setActiveView(view);
+        setEditingPageId(pageId);
+      } catch {
+        setActiveView("pages");
+        setEditingPageId(null);
+      }
+    };
+    
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const renderPlaceholderView = (view: string) => {
     const viewTitles: Record<string, string> = {
@@ -64,7 +236,51 @@ export default function App() {
     );
   };
 
-  // Show login screen if not authenticated
+  // State for public page navigation
+  // When user first visits root path, use empty string to show page marked as home page
+  const [publicPageSlug, setPublicPageSlug] = useState(() => {
+    const path = window.location.pathname;
+    // Use empty string for root path (backend will find page marked as home page)
+    // Keep 'home' only when explicitly navigating to /home
+    return path === '/' || path === '' ? '' : path.replace(/^\//, '');
+  });
+
+  // Handle browser navigation for public pages
+  useEffect(() => {
+    if (!isAuthenticated) {
+      const handlePublicNavigation = () => {
+        const currentPath = window.location.pathname;
+        // Use empty string for root path, keep actual path for others
+        const newSlug = currentPath === '/' || currentPath === '' ? '' : currentPath.replace(/^\//, '');
+        setPublicPageSlug(newSlug);
+      };
+      
+      window.addEventListener('popstate', handlePublicNavigation);
+      
+      return () => {
+        window.removeEventListener('popstate', handlePublicNavigation);
+      };
+    }
+  }, [isAuthenticated]);
+
+  // Show public pages ONLY if accessing via custom domain (mycms.test)
+  if (isPublicDomain()) {
+    return (
+      <>
+        <PublicPage slug={publicPageSlug} onNavigate={(path) => {
+          // Update URL and state
+          window.history.pushState({}, '', path);
+          // Use empty string for root path, keep actual path for others
+          const newSlug = path === '/' || path === '' ? '' : path.replace(/^\//, '');
+          setPublicPageSlug(newSlug);
+        }} />
+        <Toaster />
+      </>
+    );
+  }
+
+  // For localhost and other domains, show CMS
+  // Show login if not authenticated, dashboard if authenticated
   if (!isAuthenticated) {
     return (
       <>
@@ -79,7 +295,7 @@ export default function App() {
     <div className="flex h-screen bg-white overflow-hidden">
       <Sidebar 
         activeView={activeView} 
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
         onLogout={handleLogout}
       />
       
@@ -88,7 +304,7 @@ export default function App() {
       )}
 
       {activeView === "pages" && editingPageId && (
-        <PageEditor pageId={editingPageId} onBack={handleBackToList} />
+        <PageEditor pageId={editingPageId === "new" ? "new" : editingPageId} onBack={handleBackToList} />
       )}
 
       {activeView === "dynamic-pages" && <DynamicPages />}

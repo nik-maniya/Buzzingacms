@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Search, Plus, Edit2, Lock, Rocket, Copy, Trash2, MoreHorizontal } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, Plus, Edit2, Lock, Rocket, Copy, Trash2, MoreHorizontal, Eye } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import {
@@ -24,30 +24,107 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { PagesLivePreview } from "./PagesLivePreview";
 
 export interface Page {
   id: string;
+  slug: string;
   title: string;
   status: "published" | "draft";
   lastUpdated: string;
+  isHomePage?: boolean;
 }
 
 interface PagesListProps {
-  onEditPage: (pageId: string) => void;
+  onEditPage: (pageSlug: string) => void;
   onNewPage: () => void;
 }
 
 export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [pages, setPages] = useState<Page[]>([]);
+  const [showLivePreview, setShowLivePreview] = useState(false);
 
-  const pages: Page[] = [
-    { id: "1", title: "Home", status: "published", lastUpdated: "Oct 28, 2025" },
-    { id: "2", title: "About", status: "draft", lastUpdated: "Oct 20, 2025" },
-    { id: "3", title: "Contact", status: "published", lastUpdated: "Oct 15, 2025" },
-    { id: "4", title: "Services", status: "published", lastUpdated: "Oct 10, 2025" },
-    { id: "5", title: "Case Studies", status: "draft", lastUpdated: "Oct 5, 2025" },
-  ];
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setPages([]);
+      return;
+    }
+
+    // Use relative URL so domain is automatically included
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "/api";
+
+    fetch(`${apiBase}/pages`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (r) => {
+        const res = await r.json();
+        if (!r.ok) throw new Error(res?.message || "Failed to load pages");
+        const data = res?.data || [];
+        const mapped: Page[] = data.map((p: any) => ({
+          id: p.id,
+          slug: p.slug || p.id,
+          title: p.title,
+          status: p.status === "PUBLISHED" ? "published" : "draft",
+          lastUpdated: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "",
+          isHomePage: !!p.isHomePage,
+        }));
+        setPages(mapped);
+      })
+      .catch(() => setPages([]));
+  }, []);
+
+  const handleSetHome = async (pageId: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    // Use relative URL so domain is automatically included
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "/api";
+
+    try {
+      const res = await fetch(`${apiBase}/pages/${pageId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isHomePage: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to set home page");
+      setPages((prev) => prev.map((p) => ({ ...p, isHomePage: p.id === pageId })));
+    } catch (e) {
+      // silently ignore; could show a toast
+    }
+  };
+
+  const handleDelete = async (pageId: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    // Use relative URL so domain is automatically included
+    const apiBase = (import.meta as any).env?.VITE_API_URL
+      ? (import.meta as any).env.VITE_API_URL
+      : "/api";
+
+    try {
+      const res = await fetch(`${apiBase}/pages/${pageId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Failed to delete page");
+      setPages((prev) => prev.filter((p) => p.id !== pageId));
+    } catch (e) {
+      // optionally surface error
+    }
+  };
 
   const filteredPages = pages.filter((page) => {
     const matchesSearch = page.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -56,16 +133,26 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
   });
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
+    <div className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Header */}
       <div className="border-b border-neutral-200 bg-white sticky top-0 z-10">
         <div className="px-8 py-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-neutral-900">Pages</h2>
-            <Button onClick={onNewPage} className="bg-yellow-400 hover:bg-yellow-500 text-neutral-900">
-              <Plus className="w-4 h-4 mr-2" />
-              New Page
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowLivePreview(true)}
+                className="gap-2"
+              >
+                <Eye className="w-4 h-4" />
+                Live Preview
+              </Button>
+              <Button onClick={onNewPage} className="bg-yellow-400 hover:bg-yellow-500 text-neutral-900">
+                <Plus className="w-4 h-4 mr-2" />
+                New Page
+              </Button>
+            </div>
           </div>
 
           {/* Filters */}
@@ -99,6 +186,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
           <Table>
             <TableHeader>
               <TableRow className="bg-neutral-50 hover:bg-neutral-50">
+                <TableHead className="text-neutral-600 w-20">Home</TableHead>
                 <TableHead className="text-neutral-600">Title</TableHead>
                 <TableHead className="text-neutral-600">Status</TableHead>
                 <TableHead className="text-neutral-600">Last Updated</TableHead>
@@ -110,8 +198,16 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
                 <TableRow 
                   key={page.id} 
                   className="cursor-pointer hover:bg-neutral-50"
-                  onClick={() => onEditPage(page.id)}
+                  onClick={() => onEditPage(page.slug)}
                 >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 cursor-pointer"
+                      checked={!!page.isHomePage}
+                      onChange={() => handleSetHome(page.id)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="text-neutral-900">{page.title}</span>
@@ -136,7 +232,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
-                        onClick={() => onEditPage(page.id)}
+                        onClick={() => onEditPage(page.slug)}
                       >
                         <Edit2 className="w-4 h-4" />
                       </Button>
@@ -160,7 +256,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
                             <Copy className="w-4 h-4 mr-2" />
                             Duplicate
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">
+                          <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(page.id)}>
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete
                           </DropdownMenuItem>
@@ -174,6 +270,7 @@ export function PagesList({ onEditPage, onNewPage }: PagesListProps) {
           </Table>
         </div>
       </div>
+      <PagesLivePreview open={showLivePreview} onClose={() => setShowLivePreview(false)} />
     </div>
   );
 }

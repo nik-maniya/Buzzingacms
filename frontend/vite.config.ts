@@ -52,12 +52,25 @@ export default defineConfig({
     outDir: 'dist',
   },
   server: {
-    port: 3000,
+    port: 80,
+    host: '0.0.0.0',
+    // Allow all domains - the backend will handle domain-based routing
+    // This allows mycms.test, mycms2.test, and any other configured domains
+    allowedHosts: true,
     open: true,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        // Preserve the host header so backend can extract domain
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            // Preserve the original host header
+            if (req.headers.host) {
+              proxyReq.setHeader('host', req.headers.host);
+            }
+          });
+        },
       },
     },
   },

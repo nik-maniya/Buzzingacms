@@ -12,7 +12,7 @@ const api: AxiosInstance = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,6 +30,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Handle unauthorized access
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('token');
       window.location.href = '/';
     }
     return Promise.reject(error);
@@ -60,9 +61,32 @@ export const pagesAPI = {
 
 // Collections API
 export const collectionsAPI = {
-  getAll: () => api.get('/collections'),
+  getAll: () => api.get('/collections/getAll'),
   
-  create: (collectionData: any) => api.post('/collections', collectionData),
+  create: (collectionData: any) => api.post('/collections/create', collectionData),
+
+  delete: (id: string) => api.delete(`/collections/deleteCollection/${id}`),
+  
+  update: (id: string, collectionData: any) => api.put(`/collections/updateCollection/${id}`, collectionData),
+};
+
+// Collection Fields API
+export const collectionFieldsAPI = {
+  getAll: (collectionId: string) => api.get(`/collection-fields/getAllCollectionFields/${collectionId}`),
+  getAllFieldName: (collectionId: string) => api.get(`/collection-fields/getAllFieldName/${collectionId}`),
+  getById: (id: string) => api.get(`/collection-fields/getCollectionFieldById/${id}`),
+  create: (collectionFieldData: any) => api.post('/collection-fields/createCollectionField', collectionFieldData),
+  update: (id: string, collectionFieldData: any) => api.put(`/collection-fields/updateCollectionField/${id}`, collectionFieldData),
+  delete: (id: string) => api.delete(`/collection-fields/deleteCollectionField/${id}`),
+};
+
+// Collection Items API
+export const collectionItemsAPI = {
+  getAll: (collectionId: string) => api.get(`/collection-items/getAllCollectionItems/${collectionId}`),
+  getById: (id: string) => api.get(`/collection-items/getCollectionItemById/${id}`),
+  create: (itemData: any) => api.post('/collection-items/createCollectionItem', itemData),
+  update: (id: string, itemData: any) => api.put(`/collection-items/updateCollectionItem/${id}`, itemData),
+  delete: (id: string) => api.delete(`/collection-items/deleteCollectionItem/${id}`),
 };
 
 // Media API
@@ -100,12 +124,64 @@ export const menusAPI = {
 
 // Forms API
 export const formsAPI = {
-  getAll: () => api.get('/forms'),
+  getAll: () => api.get('/forms/getAllForms'),
+  getById: (id: string) => api.get(`/forms/getFormById/${id}`),
+  update: (id: string, formData: any) => api.put(`/forms/updateForms/${id}`, formData),
   
-  create: (formData: any) => api.post('/forms', formData),
+  create: (formData: any) => api.post('/forms/createForms', formData),
   
   submitResponse: (formId: string, responseData: any) =>
     api.post(`/forms/${formId}/responses`, responseData),
+  
+  delete: (formId: string) => api.delete(`/forms/deleteForms/${formId}`),
+};
+
+// Page Templates API
+export const pageTemplatesAPI = {
+  getAll: (collectionId: string) => api.get(`/page-templates/getAllPageTemplates/${collectionId}`),
+  getById: (id: string, itemId?: string) => {
+    const url = itemId 
+      ? `/page-templates/getPageTemplateById/${id}?itemId=${itemId}`
+      : `/page-templates/getPageTemplateById/${id}`;
+    return api.get(url);
+  },
+  create: (templateData: { collectionId: string | number; htmlContent: string }) =>
+    api.post('/page-templates/createPageTemplate', templateData),
+  update: (id: string, templateData: { name?: string; description?: string; htmlContent?: string }) =>
+    api.put(`/page-templates/updatePageTemplate/${id}`, templateData),
+  delete: (id: string) => api.delete(`/page-templates/deletePageTemplate/${id}`),
+  render: (templateId: string, itemId: string) =>
+    api.get(`/page-templates/renderTemplate/${templateId}/${itemId}`),
+  // Render a single collection item using the latest template for the collection
+  renderItem: (collectionId: string | number, itemId: string | number) =>
+    api.get(`/page-templates/renderItem/${collectionId}/${itemId}`),
+};
+
+// Domain API
+export const domainAPI = {
+  // Get current user's domain
+  getDomain: () => api.get('/domain/getDomain'),
+  
+  // Upsert domain (create or update)
+  upsertDomain: (domainData: { domainName: string }) =>
+    api.post('/domain/upsertDomain', domainData),
+  
+  // Create DNS record
+  createDNSRecord: (recordData: {
+    domainId: number;
+    type: string;
+    name: string;
+    value: string;
+    ttl?: number;
+  }) => api.post('/domain/createDNSRecord', recordData),
+  
+  // Update DNS record
+  updateDNSRecord: (recordId: number, recordData: {
+    type?: string;
+    name?: string;
+    value?: string;
+    ttl?: number;
+  }) => api.put(`/domain/updateDNSRecord/${recordId}`, recordData),
 };
 
 // Health check

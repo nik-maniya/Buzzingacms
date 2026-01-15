@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Eye } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -7,7 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { WysiwygEditor } from "./WysiwygEditor";
 import { CodeEditor } from "./CodeEditor";
 import { ItemMetadataPanel } from "./ItemMetadataPanel";
-import { Collection, Item } from "./DynamicPages";
+import { Collection, Item, Field } from "./DynamicPages";
+import { collectionFieldsAPI, collectionItemsAPI } from "../services/api";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 interface ItemEditorProps {
   collection: Collection;
@@ -23,9 +27,103 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
   const [cssCode, setCssCode] = useState(".content {\n  padding: 2rem;\n  max-width: 800px;\n  margin: 0 auto;\n}");
   const [jsCode, setJsCode] = useState("// Item initialization\nconsole.log('Item loaded');");
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [fields, setFields] = useState<Field[]>(collection.fields);
+  const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
+  const [status, setStatus] = useState<"DRAFT" | "PUBLISHED" | "ARCHIVED">(
+    (item?.status?.toUpperCase() as "DRAFT" | "PUBLISHED" | "ARCHIVED") || "DRAFT"
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Fetch latest fields from API when component loads or collection changes
+  useEffect(() => {
+    const fetchFields = async () => {
+      try {
+        const response = await collectionFieldsAPI.getAll(collection.id);
+        if (response.data.success) {
+          const apiFields = response.data.data || [];
+          const transformedFields = apiFields.map((apiField: any) => {
+            // Get options from options field, fallback to defaultValue for backward compatibility
+            let options: string[] = [];
+            
+            // First try to get options from the options field
+            if (apiField.options) {
+              if (Array.isArray(apiField.options)) {
+                options = apiField.options;
+              } else if (typeof apiField.options === 'string') {
+                try {
+                  const parsed = JSON.parse(apiField.options);
+                  if (Array.isArray(parsed)) {
+                    options = parsed;
+                  }
+                } catch (e) {
+                  // Not valid JSON
+                }
+              }
+            }
+            
+            // If no options found, check defaultValue for backward compatibility
+            if (options.length === 0 && apiField.defaultValue) {
+              try {
+                const parsed = JSON.parse(apiField.defaultValue);
+                if (Array.isArray(parsed)) {
+                  options = parsed;
+                }
+              } catch (e) {
+                // Not JSON, keep as empty array
+              }
+            }
+
+            return {
+              id: apiField.id,
+              name: apiField.fieldLabel,
+              type: apiField.fieldType as Field["type"],
+              required: apiField.required || false,
+              options: options,
+            };
+          });
+          setFields(transformedFields);
+        }
+      } catch (error) {
+        console.error("Error fetching fields:", error);
+        // Fallback to collection.fields if API fails
+        setFields(collection.fields);
+      }
+    };
+
+    fetchFields();
+  }, [collection.id]);
+
+  // Load item data when editing
+  useEffect(() => {
+    if (item) {
+      setTitle(item.title || "");
+      setSlug(item.slug || "");
+      const itemStatus = item.status?.toUpperCase() || "DRAFT";
+      setStatus(
+        (itemStatus === "DRAFT" || itemStatus === "PUBLISHED" || itemStatus === "ARCHIVED")
+          ? (itemStatus as "DRAFT" | "PUBLISHED" | "ARCHIVED")
+          : "DRAFT"
+      );
+      if (item.fields) {
+        setFieldValues(item.fields);
+        if (item.fields.content) setContent(item.fields.content);
+        if (item.fields.css) setCssCode(item.fields.css);
+        if (item.fields.js) setJsCode(item.fields.js);
+      }
+    } else {
+      // Reset for new item
+      setTitle("");
+      setSlug("");
+      setStatus("DRAFT");
+      setFieldValues({});
+      setContent("<h1>Welcome to your new item</h1><p>Start writing your content here...</p>");
+      setCssCode(".content {\n  padding: 2rem;\n  max-width: 800px;\n  margin: 0 auto;\n}");
+      setJsCode("// Item initialization\nconsole.log('Item loaded');");
+    }
+  }, [item]);
 
   const deviceSizes = {
-    desktop: "100%",
+    desktop: "calc(100% - 2rem)",
     tablet: "768px",
     mobile: "375px",
   };
@@ -42,10 +140,103 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
     }
   };
 
+  const handleFieldChange = (fieldId: string, value: any) => {
+    setFieldValues((prev) => ({ ...prev, [fieldId]: value }));
+  };
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      
+      // Validate required fields
+      const missingFields: string[] = [];
+      
+      // Check title (always required)
+      if (!title.trim()) {
+        missingFields.push("Title");
+      }
+      
+      // Check all required fields
+      fields.forEach((field) => {
+        if (field.required) {
+          const value = fieldValues[field.id];
+          let isEmpty = false;
+          
+          // Handle different field types
+          if (field.type === "boolean") {
+            // Boolean fields: check if value is explicitly false or undefined
+            isEmpty = value === undefined || value === null;
+          } else if (field.type === "dropdown" || field.type === "radio") {
+            // Dropdown/Radio: empty string means not selected
+            isEmpty = value === undefined || value === null || value === "";
+          } else if (field.type === "image") {
+            // Image: check if no file is selected
+            isEmpty = value === undefined || value === null || value === "";
+          } else {
+            // Text, longtext, date, tags: check if empty or whitespace
+            isEmpty = value === undefined || value === null || value === "" || (typeof value === "string" && !value.trim());
+          }
+          
+          if (isEmpty) {
+            missingFields.push(field.name);
+          }
+        }
+      });
+      
+      // If there are missing required fields, show error and stop
+      if (missingFields.length > 0) {
+        toast.error(`Please fill in all required fields: ${missingFields.join(", ")}`);
+        setIsSaving(false);
+        return;
+      }
+      
+      // Prepare data object with all field values
+      const itemData: Record<string, any> = {
+        title,
+        slug,
+        ...fieldValues,
+      };
+
+      if (item) {
+        // Update existing item
+        const response = await collectionItemsAPI.update(item.id, {
+          // Keep title/slug at top-level so backend merges them correctly
+          title,
+          slug,
+          data: itemData,
+          status,
+        });
+        if (response.data.success) {
+          toast.success("Item saved successfully!");
+          onBack(); // Go back to list
+        }
+      } else {
+        // Create new item
+        const response = await collectionItemsAPI.create({
+          collectionId: collection.id,
+          // Also send title/slug top-level for consistency
+          title,
+          slug,
+          data: itemData,
+          status,
+        });
+        if (response.data.success) {
+          toast.success("Item created successfully!");
+          onBack(); // Go back to list
+        }
+      }
+    } catch (error: any) {
+      console.error("Error saving item:", error);
+      toast.error(error.response?.data?.message || "Failed to save item");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col bg-white">
+    <div className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Header */}
-      <div className="border-b border-neutral-200 bg-white sticky top-0 z-10">
+      <div className="border-b border-neutral-200 bg-white sticky top-0 z-10 flex-shrink-0">
         <div className="px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
@@ -65,15 +256,33 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
               </h2>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+          <Select value={status} onValueChange={(value: "DRAFT" | "PUBLISHED") => setStatus(value)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="PUBLISHED">Published</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={handleSave}
+              className="bg-yellow-400 text-neutral-900 hover:bg-yellow-500"
+              disabled={isSaving || !title.trim()}
+            >
+              {isSaving ? "Saving..." : item ? "Save Changes" : "Create Item"}
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0" style={{ minWidth: 0 }}>
         {/* Editor Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0" style={{ minWidth: 0, maxWidth: "calc(100% - 320px)" }}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="border-b border-neutral-200 px-8">
+            {/* <div className="border-b border-neutral-200 px-8">
               <TabsList className="bg-transparent h-12 p-0 space-x-1">
                 <TabsTrigger
                   value="content"
@@ -101,9 +310,9 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                   Preview
                 </TabsTrigger>
               </TabsList>
-            </div>
+            </div> */}
 
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden min-h-0 min-w-0">
               <TabsContent value="content" className="h-full m-0 p-8 overflow-auto">
                 <div className="max-w-3xl space-y-6">
                   <div className="space-y-2">
@@ -132,7 +341,7 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                   </div>
 
                   {/* Dynamic Fields Based on Collection */}
-                  {collection.fields
+                  {fields
                     .filter((field) => field.name !== "Title" && field.name !== "Slug")
                     .map((field) => (
                       <div key={field.id} className="space-y-2">
@@ -141,26 +350,108 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                           {field.required && <span className="text-red-500 ml-1">*</span>}
                         </Label>
                         {field.type === "longtext" && field.name.toLowerCase().includes("body") ? (
-                          <WysiwygEditor value={content} onChange={setContent} />
+                          <WysiwygEditor 
+                            value={fieldValues[field.id] || content} 
+                            onChange={(value) => {
+                              setContent(value);
+                              handleFieldChange(field.id, value);
+                            }} 
+                          />
                         ) : field.type === "longtext" ? (
-                          <Input
+                          <textarea
                             id={field.id}
+                            rows={4}
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
                             placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            className="border-neutral-200"
+                            className="border border-neutral-200 rounded-md p-2 w-full"
                           />
                         ) : field.type === "image" ? (
-                          <div className="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-neutral-400 transition-colors cursor-pointer">
-                            <p className="text-sm text-neutral-500">Click to upload or drag and drop</p>
+                          <input
+                            id={field.id}
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleFieldChange(field.id, file.name);
+                            }}
+                            className="border border-neutral-200 rounded-md h-10 px-3 py-1"
+                          />
+                        ) : field.type === "boolean" ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              id={field.id}
+                              type="checkbox"
+                              checked={fieldValues[field.id] || false}
+                              onChange={(e) => handleFieldChange(field.id, e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            <span className="text-sm text-neutral-700">{`Toggle ${field.name.toLowerCase()}`}</span>
                           </div>
+                        ) : field.type === "date" ? (
+                          <Input
+                            id={field.id}
+                            type="date"
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                            className="border-neutral-200"
+                          />
                         ) : field.type === "tags" ? (
                           <Input
                             id={field.id}
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
                             placeholder="Add tags (comma separated)..."
                             className="border-neutral-200"
                           />
+                        ) : field.type === "dropdown" ? (
+                          <select
+                            id={field.id}
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                            className="border border-neutral-200 rounded-md h-10 px-3 w-full"
+                          >
+                            <option value="" disabled>
+                              {`Select ${field.name.toLowerCase()}`}
+                            </option>
+                            {(field.options || []).map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        ) : field.type === "text" ? (
+                          <Input
+                            id={field.id}
+                            type="text"
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            className="border-neutral-200"
+                          />
+                        ) : field.type === "radio" ? (
+                          <RadioGroup
+                            value={fieldValues[field.id] || ""}
+                            onValueChange={(value) => handleFieldChange(field.id, value)}
+                            className="flex flex-col gap-2"
+                          >
+                            {(field.options || []).map((opt) => (
+                              <div key={opt} className="flex items-center space-x-2">
+                                <RadioGroupItem value={opt} id={`${field.id}-${opt}`} />
+                                <Label
+                                  htmlFor={`${field.id}-${opt}`}
+                                  className="text-sm font-normal cursor-pointer"
+                                >
+                                  {opt}
+                                </Label>
+                              </div>
+                            ))}
+                          </RadioGroup>
                         ) : (
                           <Input
                             id={field.id}
+                            value={fieldValues[field.id] || ""}
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
                             placeholder={`Enter ${field.name.toLowerCase()}...`}
                             className="border-neutral-200"
                           />
@@ -178,8 +469,8 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                 <CodeEditor value={jsCode} onChange={setJsCode} language="javascript" />
               </TabsContent>
 
-              <TabsContent value="preview" className="h-full m-0 p-8 bg-neutral-50 overflow-auto">
-                <div className="mb-4 flex items-center justify-center gap-2">
+              <TabsContent value="preview" className="h-full m-0 p-8 bg-neutral-50 overflow-auto min-w-0">
+                <div className="mb-4 flex items-center justify-center gap-2 flex-shrink-0">
                   <Button
                     variant={previewDevice === "desktop" ? "default" : "outline"}
                     size="sm"
@@ -205,15 +496,39 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
                     Mobile
                   </Button>
                 </div>
-                <div className="flex justify-center">
+                <div className="flex justify-center flex-shrink-0 w-full min-w-0">
                   <div
-                    className="bg-white border border-neutral-200 rounded-lg overflow-hidden shadow-lg transition-all"
-                    style={{ width: deviceSizes[previewDevice], minHeight: "600px" }}
+                    className={previewDevice === "desktop" 
+                      ? "bg-white border border-neutral-200 rounded-lg overflow-auto shadow-lg transition-all w-full max-w-full"
+                      : "bg-white border border-neutral-200 rounded-lg overflow-auto shadow-lg transition-all"
+                    }
+                    style={previewDevice === "desktop" 
+                      ? { minHeight: "600px", maxWidth: "100%" }
+                      : { width: deviceSizes[previewDevice], minHeight: "600px", maxWidth: "100%" }
+                    }
                   >
-                    <div className="p-8">
+                    <div className="p-8" style={{ maxWidth: "100%", overflow: "hidden" }}>
+                      {/* Scope user CSS to .cms-page automatically */}
+                      {cssCode ? (
+                        <style dangerouslySetInnerHTML={{ __html: cssCode.replace(/([^{}]+)\{/g, (match, selector) => {
+                          if (selector.includes('.cms-page') || selector.trim().startsWith('@')) {
+                            return match;
+                          }
+                          const scopedSelector = selector.split(',').map(s => {
+                            const trimmed = s.trim();
+                            if (trimmed.includes('.cms-page') || trimmed.startsWith(':') || trimmed.startsWith('@')) {
+                              return trimmed;
+                            }
+                            return `.cms-page ${trimmed}`;
+                          }).join(', ');
+                          return `${scopedSelector}{`;
+                        }) }} />
+                      ) : null}
                       <h1 className="mb-4 text-neutral-900">{title || "Untitled Item"}</h1>
+                      {/* Automatically wrap user content in .cms-page */}
                       <div
-                        className="prose prose-neutral max-w-none"
+                        className="cms-page prose prose-neutral max-w-none"
+                        style={{ maxWidth: "100%", overflow: "hidden" }}
                         dangerouslySetInnerHTML={{ __html: content }}
                       />
                     </div>
@@ -225,7 +540,9 @@ export function ItemEditor({ collection, item, onBack }: ItemEditorProps) {
         </div>
 
         {/* Right Sidebar - Metadata Panel */}
-        <ItemMetadataPanel item={item} />
+        <div className="flex-shrink-0" style={{ width: "320px", minWidth: "320px", maxWidth: "320px" }}>
+          <ItemMetadataPanel item={item} />
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -13,21 +13,47 @@ export function Login({ onLogin }: LoginProps) {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
-    // Validate credentials
-    if (email === "admin@buzzinga.com" && password === "buzzinga2025") {
-      setIsLoading(true);
+    setIsLoading(true);
+
+    try {
+      // Use relative URL so it works with any domain
+      // For admin login, we use localhost or the current domain
+      const apiBase = (import.meta as any).env?.VITE_API_URL
+        ? (import.meta as any).env.VITE_API_URL
+        : "/api";
       
-      // Simulate login delay
-      setTimeout(() => {
-        toast.success("Login successful!");
-        onLogin();
-        setIsLoading(false);
-      }, 800);
-    } else {
-      toast.error("Invalid email or password");
+      const response = await fetch(`${apiBase}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Invalid email or password");
+      }
+
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+      }
+
+      if (data?.user) {
+        try {
+          localStorage.setItem("user", JSON.stringify(data.user));
+        } catch {}
+      }
+
+      toast.success("Login successful!");
+      onLogin();
+    } catch (err: any) {
+      toast.error(err?.message || "Login failed");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -45,7 +71,7 @@ export function Login({ onLogin }: LoginProps) {
 
         {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-lg border border-neutral-200 p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
             {/* Email Field */}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-neutral-700">
@@ -58,6 +84,11 @@ export function Login({ onLogin }: LoginProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                name="login_email"
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="h-11 bg-neutral-50 border-neutral-300 focus:border-yellow-400 focus:ring-yellow-400"
               />
             </div>
@@ -74,6 +105,11 @@ export function Login({ onLogin }: LoginProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                name="login_password"
+                autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="h-11 bg-neutral-50 border-neutral-300 focus:border-yellow-400 focus:ring-yellow-400"
               />
             </div>

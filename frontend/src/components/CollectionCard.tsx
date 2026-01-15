@@ -6,9 +6,11 @@ import { Collection } from "./DynamicPages";
 interface CollectionCardProps {
   collection: Collection;
   onOpen: () => void;
+  onDelete: () => void;
+  onEdit: () => void;
 }
 
-export function CollectionCard({ collection, onOpen }: CollectionCardProps) {
+export function CollectionCard({ collection, onOpen, onDelete, onEdit }: CollectionCardProps) {
   return (
     <Card className="group hover:shadow-lg transition-all border-neutral-200 bg-white">
       <CardHeader className="pb-3">
@@ -20,11 +22,15 @@ export function CollectionCard({ collection, onOpen }: CollectionCardProps) {
               <p className="text-sm text-neutral-500">{collection.itemCount} items</p>
             </div>
           </div>
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+          <div className="flex gap-1">
             <Button
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 text-neutral-600 hover:text-neutral-900"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
             >
               <Settings className="w-4 h-4" />
             </Button>
@@ -32,6 +38,10 @@ export function CollectionCard({ collection, onOpen }: CollectionCardProps) {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 text-neutral-600 hover:text-red-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
             >
               <Trash2 className="w-4 h-4" />
             </Button>

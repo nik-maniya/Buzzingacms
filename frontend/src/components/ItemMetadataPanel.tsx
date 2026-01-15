@@ -13,13 +13,36 @@ interface ItemMetadataPanelProps {
 }
 
 export function ItemMetadataPanel({ item }: ItemMetadataPanelProps) {
-  const [isPublished, setIsPublished] = useState(item?.status === "published");
+  const [isPublished, setIsPublished] = useState(item?.status === "PUBLISHED");
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
 
   return (
-    <div className="w-80 border-l border-neutral-200 bg-neutral-50 flex flex-col overflow-hidden">
-      <div className="p-6 space-y-6 overflow-auto flex-1">
+    <div 
+      className="border-l border-neutral-200 bg-neutral-50 flex flex-col overflow-hidden flex-shrink-0"
+      style={{ width: "320px", minWidth: "320px", maxWidth: "320px" }}
+    >
+      <style>{`
+        .metadata-sidebar,
+        .metadata-sidebar * {
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+        }
+        .metadata-sidebar img,
+        .metadata-sidebar img[src*="logo"],
+        .metadata-sidebar img[alt*="logo"],
+        .metadata-sidebar img[alt*="Logo"],
+        .metadata-sidebar .logo,
+        .metadata-sidebar [class*="logo"],
+        .metadata-sidebar [id*="logo"] {
+          max-width: 100% !important;
+          width: auto !important;
+          height: auto !important;
+          display: block;
+          box-sizing: border-box !important;
+        }
+      `}</style>
+      <div className="p-6 space-y-6 overflow-auto flex-1 metadata-sidebar">
         {/* Publish Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -82,8 +105,20 @@ export function ItemMetadataPanel({ item }: ItemMetadataPanelProps) {
         {/* Featured Image */}
         <div className="space-y-2">
           <Label className="text-sm">Featured Image</Label>
-          <div className="border-2 border-dashed border-neutral-300 rounded-lg p-6 text-center hover:border-neutral-400 transition-colors cursor-pointer">
-            <p className="text-xs text-neutral-500">Upload image</p>
+          <div className="border-2 border-dashed border-neutral-300 rounded-lg p-6 text-center hover:border-neutral-400 transition-colors cursor-pointer overflow-hidden">
+            <style>{`
+              .featured-image-container img,
+              .featured-image-container * {
+                max-width: 100% !important;
+                width: auto !important;
+                height: auto !important;
+                display: block;
+                box-sizing: border-box;
+              }
+            `}</style>
+            <div className="featured-image-container w-full">
+              <p className="text-xs text-neutral-500">Upload image</p>
+            </div>
           </div>
         </div>
       </div>

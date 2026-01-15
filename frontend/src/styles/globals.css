@@ -187,3 +187,86 @@
 html {
   font-size: var(--font-size);
 }
+
+/**
+ * CMS Page Scoping
+ * 
+ * All user-generated content is automatically wrapped in .cms-page
+ * This ensures CMS page styles never affect the admin panel.
+ * Users never need to add .cms-page - it's applied automatically.
+ */
+
+/* Base reset for CMS pages only */
+.cms-page * {
+  box-sizing: border-box;
+}
+
+/* Layout containers */
+.cms-page .container,
+.cms-page [class*="container"],
+.cms-page [class*="layout"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+  width: 100%;
+  margin: 40px auto;
+}
+
+.cms-page main,
+.cms-page .main-content {
+  flex: 1 1 70%;
+  min-width: 300px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.cms-page aside,
+.cms-page .sidebar {
+  flex: 1 1 25%;
+  min-width: 250px;
+  padding: 20px;
+  background: #f1f3f5;
+  border-radius: 8px;
+}
+
+/* Image constraints for CMS pages */
+.cms-page img,
+.cms-page img[src*="logo"],
+.cms-page img[alt*="logo"],
+.cms-page img[alt*="Logo"],
+.cms-page header img,
+.cms-page nav img,
+.cms-page .logo,
+.cms-page [class*="logo"],
+.cms-page [id*="logo"] {
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  display: block;
+  box-sizing: border-box;
+}
+
+/* Header/nav constraints */
+.cms-page header,
+.cms-page nav,
+.cms-page [class*="header"],
+.cms-page [id*="header"] {
+  max-width: 100% !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* Content constraints */
+.cms-page {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Prevent content expansion */
+.cms-page * {
+  max-width: 100%;
+}
